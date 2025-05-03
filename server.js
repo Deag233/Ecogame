@@ -1,144 +1,123 @@
 const express = require('express');
+const { MongoClient } = require('mongodb');
 const cors = require('cors');
-const mongoose = require('mongoose');
+require('dotenv').config();
 
 const app = express();
+const port = 3001;
 
 // Middleware
 app.use(cors());
 app.use(express.json());
 
-// MongoDB connection
-const MONGODB_URI = 'mongodb+srv://econoch:DeaG16181822@cluster0.zweknv6.mongodb.net/econoch?retryWrites=true&w=majority&appName=Cluster0';
+// MongoDB connection string
+const uri = 'mongodb+srv://econoch:DeaG16181822@cluster0.zweknv6.mongodb.net/econoch?retryWrites=true&w=majority&appName=Cluster0';
+const client = new MongoClient(uri);
 
-console.log('Attempting to connect to MongoDB...');
-mongoose.connect(MONGODB_URI)
-    .then(() => {
-        console.log('Successfully connected to MongoDB Atlas');
-        console.log('Connection details:', {
-            host: mongoose.connection.host,
-            name: mongoose.connection.name,
-            port: mongoose.connection.port
-        });
-    })
-    .catch(err => {
-        console.error('MongoDB connection error:', err);
-        console.error('Connection string used:', MONGODB_URI.replace(/:[^:@]+@/, ':****@')); // Hide password in logs
-    });
-
-// Player Schema
-const playerSchema = new mongoose.Schema({
-    telegramId: { type: String, required: true, unique: true },
-    username: { type: String, default: 'Anonymous' },
-    score: { type: Number, default: 0 },
-    multiplier: { type: Number, default: 1 },
-    upgrades: {
-        autoClicker: {
-            level: { type: Number, default: 0 },
-            cost: { type: Number, default: 10 },
-            baseCost: { type: Number, default: 10 },
-            clicksPerSecond: { type: Number, default: 0 }
-        },
-        clickPower: {
-            level: { type: Number, default: 0 },
-            cost: { type: Number, default: 50 },
-            baseCost: { type: Number, default: 50 },
-            power: { type: Number, default: 1 }
+// Connect to MongoDB
+async function connectToMongo() {
+    try {
+        await client.connect();
+        console.log('Connected to MongoDB');
+        
+        // Test the connection by accessing the database
+        const db = client.db('econoch');
+        const collections = await db.listCollections().toArray();
+        console.log('Available collections:', collections.map(c => c.name));
+        
+        // Ensure players collection exists
+        if (!collections.find(c => c.name === 'players')) {
+            await db.createCollection('players');
+            console.log('Created players collection');
         }
-    },
-    lastUpdated: { type: Date, default: Date.now }
+    } catch (error) {
+        console.error('MongoDB connection error:', error);
+        process.exit(1);
+    }
+}
+
+// Add OPTIONS route for CORS preflight
+app.options('/api/players/:telegramId', cors());
+app.options('/api/players', cors());
+
+// Routes
+app.get('/api/players/:telegramId', async (req, res) => {
+    try {
+        const { telegramId } = req.params;
+        console.log('GET request for player:', telegramId);
+        
+        const player = await client.db('econoch').collection('players').findOne({ telegramId: String(telegramId) });
+        console.log('Found player:', player);
+        
+        if (player) {
+            res.json(player);
+        } else {
+            console.log('Player not found, returning 404');
+            res.status(404).json({ error: 'Player not found' });
+        }
+    } catch (error) {
+        console.error('Error fetching player:', error);
+        res.status(500).json({ error: 'Internal server error', details: error.message });
+    }
 });
 
-const Player = mongoose.model('Player', playerSchema);
-
-// API Routes
 app.post('/api/players', async (req, res) => {
     try {
-        console.log('\n=== SAVE REQUEST START ===');
-        console.log('Request body:', JSON.stringify(req.body, null, 2));
-        const { telegramId, username, gameState } = req.body;
+        const player = req.body;
+        console.log('POST request with data:', player);
         
-        if (!telegramId) {
+        if (!player.telegramId) {
             console.error('Missing telegramId in request');
             return res.status(400).json({ error: 'Missing telegramId' });
         }
-
-        if (!gameState) {
-            console.error('Missing gameState in request');
-            return res.status(400).json({ error: 'Missing gameState' });
-        }
-
-        const playerData = {
-            telegramId,
-            username: username || 'Anonymous',
-            score: gameState.score || 0,
-            multiplier: gameState.multiplier || 1,
-            upgrades: gameState.upgrades || {
-                autoClicker: { level: 0, cost: 10, baseCost: 10, clicksPerSecond: 0 },
-                clickPower: { level: 0, cost: 50, baseCost: 50, power: 1 }
-            },
-            lastUpdated: new Date()
-        };
         
-        console.log('Prepared player data:', JSON.stringify(playerData, null, 2));
+        // Convert telegramId to string
+        player.telegramId = String(player.telegramId);
         
-        console.log('Attempting to save to MongoDB...');
-        const player = await Player.findOneAndUpdate(
-            { telegramId },
-            playerData,
-            { new: true, upsert: true }
+        const result = await client.db('econoch').collection('players').insertOne(player);
+        console.log('Insert result:', result);
+        
+        res.status(201).json({ ...player, _id: result.insertedId });
+    } catch (error) {
+        console.error('Error creating player:', error);
+        res.status(500).json({ error: 'Internal server error', details: error.message });
+    }
+});
+
+app.put('/api/players/:telegramId', async (req, res) => {
+    try {
+        const { telegramId } = req.params;
+        const player = req.body;
+        console.log('PUT request for player:', telegramId);
+        console.log('Update data:', player);
+        
+        // Convert telegramId to string
+        const query = { telegramId: String(telegramId) };
+        
+        const result = await client.db('econoch').collection('players').updateOne(
+            query,
+            { $set: { ...player, lastUpdated: new Date() } },
+            { upsert: true }
         );
         
-        console.log('Successfully saved to MongoDB:', JSON.stringify(player, null, 2));
-        console.log('=== SAVE REQUEST END ===\n');
-        res.json(player);
-    } catch (error) {
-        console.error('Error saving player:', error);
-        console.error('Error details:', error.stack);
-        res.status(500).json({ error: error.message });
-    }
-});
-
-app.get('/api/players/:telegramId', async (req, res) => {
-    try {
-        console.log('\n=== LOAD REQUEST START ===');
-        console.log('Loading player:', req.params.telegramId);
-        const player = await Player.findOne({ telegramId: req.params.telegramId });
+        console.log('Update result:', result);
         
-        if (!player) {
-            console.log('Player not found:', req.params.telegramId);
-            return res.status(404).json({ error: 'Player not found' });
+        if (result.matchedCount > 0) {
+            res.json({ message: 'Player updated successfully', result });
+        } else if (result.upsertedCount > 0) {
+            res.json({ message: 'Player created successfully', result });
+        } else {
+            res.status(404).json({ error: 'Player not found' });
         }
-        
-        console.log('Found player data:', JSON.stringify(player, null, 2));
-        console.log('=== LOAD REQUEST END ===\n');
-        res.json(player);
     } catch (error) {
-        console.error('Error loading player:', error);
-        console.error('Error details:', error.stack);
-        res.status(500).json({ error: error.message });
+        console.error('Error updating player:', error);
+        res.status(500).json({ error: 'Internal server error', details: error.message });
     }
 });
 
-app.get('/api/leaderboard', async (req, res) => {
-    try {
-        console.log('\n=== LEADERBOARD REQUEST START ===');
-        const leaderboard = await Player.find()
-            .sort({ score: -1 })
-            .limit(10)
-            .select('username score -_id');
-            
-        console.log('Leaderboard data:', JSON.stringify(leaderboard, null, 2));
-        console.log('=== LEADERBOARD REQUEST END ===\n');
-        res.json(leaderboard);
-    } catch (error) {
-        console.error('Error getting leaderboard:', error);
-        console.error('Error details:', error.stack);
-        res.status(500).json({ error: error.message });
-    }
-});
-
-const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => {
-    console.log(`Server is running on port ${PORT}`);
+// Start server
+connectToMongo().then(() => {
+    app.listen(port, () => {
+        console.log(`Server running on port ${port}`);
+    });
 }); 

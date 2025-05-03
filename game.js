@@ -139,8 +139,8 @@ console.log('Telegram WebApp data:', {
     user: tg.initDataUnsafe?.user
 });
 
-// API URL - будет заменен на реальный URL после деплоя
-const API_URL = 'https://econoch.onrender.com/api';
+// API URL - Local server
+const API_URL = 'http://localhost:3001/api';
 
 // Initialize game state with default values
 function initializeGameState(data = null) {
