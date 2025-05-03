@@ -69,7 +69,7 @@ function initializeGameState(data = null) {
     return defaultState;
 }
 
-// Initialize game state
+// Initialize game state immediately
 let gameState = initializeGameState();
 
 // DOM Elements
@@ -379,8 +379,151 @@ function showClickCount() {
     }, 1000);
 }
 
-// Create dev menu when the page loads
-createDevMenu();
+function createDevMenu() {
+    // Remove existing dev menu if any
+    const existingMenu = document.getElementById('devMenu');
+    if (existingMenu) {
+        existingMenu.remove();
+    }
+
+    const devMenu = document.createElement('div');
+    devMenu.id = 'devMenu';
+    devMenu.style.display = 'none';
+    devMenu.style.position = 'fixed';
+    devMenu.style.top = '50%';
+    devMenu.style.left = '50%';
+    devMenu.style.transform = 'translate(-50%, -50%)';
+    devMenu.style.backgroundColor = 'var(--tg-theme-bg-color, #2c3e50)';
+    devMenu.style.color = 'var(--tg-theme-text-color, white)';
+    devMenu.style.padding = '20px';
+    devMenu.style.borderRadius = '10px';
+    devMenu.style.zIndex = '1000';
+    devMenu.style.minWidth = '300px';
+    devMenu.style.boxShadow = '0 0 20px rgba(0, 0, 0, 0.3)';
+
+    const title = document.createElement('h2');
+    title.textContent = 'Developer Menu';
+    title.style.marginBottom = '20px';
+    title.style.textAlign = 'center';
+    devMenu.appendChild(title);
+
+    const consoleButton = document.createElement('button');
+    consoleButton.textContent = 'Open Console';
+    consoleButton.style.width = '100%';
+    consoleButton.style.padding = '10px';
+    consoleButton.style.marginBottom = '10px';
+    consoleButton.style.backgroundColor = 'var(--tg-theme-button-color, #2481cc)';
+    consoleButton.style.color = 'var(--tg-theme-button-text-color, white)';
+    consoleButton.style.border = 'none';
+    consoleButton.style.borderRadius = '5px';
+    consoleButton.style.cursor = 'pointer';
+
+    consoleButton.onclick = () => {
+        // Remove existing console if any
+        const existingConsole = document.getElementById('devConsole');
+        if (existingConsole) {
+            existingConsole.remove();
+        }
+
+        const consoleDiv = document.createElement('div');
+        consoleDiv.id = 'devConsole';
+        consoleDiv.style.position = 'fixed';
+        consoleDiv.style.bottom = '20px';
+        consoleDiv.style.left = '20px';
+        consoleDiv.style.right = '20px';
+        consoleDiv.style.height = '300px';
+        consoleDiv.style.backgroundColor = 'var(--tg-theme-bg-color, #2c3e50)';
+        consoleDiv.style.color = 'var(--tg-theme-text-color, white)';
+        consoleDiv.style.padding = '10px';
+        consoleDiv.style.borderRadius = '10px';
+        consoleDiv.style.overflowY = 'auto';
+        consoleDiv.style.fontFamily = 'monospace';
+        consoleDiv.style.fontSize = '12px';
+        consoleDiv.style.zIndex = '1001';
+        consoleDiv.style.boxShadow = '0 0 20px rgba(0, 0, 0, 0.3)';
+
+        // Add copy button
+        const copyButton = document.createElement('button');
+        copyButton.textContent = 'Copy Console';
+        copyButton.style.position = 'absolute';
+        copyButton.style.top = '10px';
+        copyButton.style.right = '10px';
+        copyButton.style.padding = '5px 10px';
+        copyButton.style.backgroundColor = 'var(--tg-theme-button-color, #2481cc)';
+        copyButton.style.color = 'var(--tg-theme-button-text-color, white)';
+        copyButton.style.border = 'none';
+        copyButton.style.borderRadius = '5px';
+        copyButton.style.cursor = 'pointer';
+        copyButton.style.fontSize = '12px';
+
+        copyButton.onclick = () => {
+            const consoleText = consoleDiv.innerText;
+            navigator.clipboard.writeText(consoleText).then(() => {
+                showNotification('Console copied to clipboard');
+            }).catch(err => {
+                showNotification('Failed to copy console', true);
+                console.error('Copy failed:', err);
+            });
+        };
+
+        consoleDiv.appendChild(copyButton);
+
+        // Override console.log
+        const originalConsoleLog = console.log;
+        console.log = function() {
+            const args = Array.from(arguments);
+            const message = args.map(arg => 
+                typeof arg === 'object' ? JSON.stringify(arg, null, 2) : arg
+            ).join(' ');
+            
+            const logEntry = document.createElement('div');
+            logEntry.style.marginBottom = '5px';
+            logEntry.style.borderBottom = '1px solid rgba(255, 255, 255, 0.1)';
+            logEntry.style.paddingBottom = '5px';
+            logEntry.textContent = message;
+            consoleDiv.appendChild(logEntry);
+            
+            // Scroll to bottom
+            consoleDiv.scrollTop = consoleDiv.scrollHeight;
+            
+            // Call original console.log
+            originalConsoleLog.apply(console, arguments);
+        };
+
+        document.body.appendChild(consoleDiv);
+        console.log('Developer console opened');
+        console.log('Current game state:', gameState);
+        console.log('Telegram WebApp data:', {
+            initData: tg.initData,
+            initDataUnsafe: tg.initDataUnsafe,
+            user: tg.initDataUnsafe?.user
+        });
+    };
+
+    const closeButton = document.createElement('button');
+    closeButton.textContent = 'Close';
+    closeButton.style.width = '100%';
+    closeButton.style.padding = '10px';
+    closeButton.style.backgroundColor = 'var(--tg-theme-button-color, #2481cc)';
+    closeButton.style.color = 'var(--tg-theme-button-text-color, white)';
+    closeButton.style.border = 'none';
+    closeButton.style.borderRadius = '5px';
+    closeButton.style.cursor = 'pointer';
+
+    closeButton.onclick = () => {
+        devMenu.style.display = 'none';
+        devMenuOpen = false;
+        // Remove console when closing menu
+        const consoleDiv = document.getElementById('devConsole');
+        if (consoleDiv) {
+            consoleDiv.remove();
+        }
+    };
+
+    devMenu.appendChild(consoleButton);
+    devMenu.appendChild(closeButton);
+    document.body.appendChild(devMenu);
+}
 
 // Add click handler for settings button
 if (settingsButton) {
@@ -431,4 +574,7 @@ if (settingsButton) {
     });
 } else {
     console.error('Settings button not found');
-} 
+}
+
+// Create dev menu when the page loads
+createDevMenu(); 
