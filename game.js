@@ -138,6 +138,10 @@ async function saveGameState() {
         
         const savedData = await response.json();
         showNotification('Прогресс сохранен');
+
+        console.log('=== SAVE REQUEST START ===');
+        console.log('Sending save request with data:', JSON.stringify(saveData, null, 2));
+        console.log('API URL:', API_URL);
     } catch (error) {
         showNotification(`Ошибка: ${error.message}`, true);
     }
@@ -167,6 +171,9 @@ async function loadGameState() {
             };
             showNotification('Прогресс загружен');
             updateUI();
+
+            console.log('=== LOAD REQUEST START ===');
+            console.log('Loading game state for user:', telegramId);
         } else if (response.status === 404) {
             showNotification('Начинаем новую игру');
             gameState = {
@@ -242,4 +249,111 @@ setInterval(autoClick, 1000);
 loadGameState();
 
 // Initial UI update
-updateUI(); 
+updateUI();
+
+// Add after DOM Elements section
+const settingsButton = document.createElement('button');
+settingsButton.textContent = '⚙️';
+settingsButton.style.position = 'fixed';
+settingsButton.style.top = '10px';
+settingsButton.style.right = '10px';
+settingsButton.style.padding = '10px';
+settingsButton.style.fontSize = '20px';
+settingsButton.style.border = 'none';
+settingsButton.style.background = 'none';
+settingsButton.style.cursor = 'pointer';
+document.body.appendChild(settingsButton);
+
+let settingsClickCount = 0;
+let devMenuOpen = false;
+
+function createDevMenu() {
+    const devMenu = document.createElement('div');
+    devMenu.style.position = 'fixed';
+    devMenu.style.top = '50%';
+    devMenu.style.left = '50%';
+    devMenu.style.transform = 'translate(-50%, -50%)';
+    devMenu.style.backgroundColor = '#2c3e50';
+    devMenu.style.padding = '20px';
+    devMenu.style.borderRadius = '10px';
+    devMenu.style.zIndex = '1000';
+    devMenu.style.display = 'none';
+    devMenu.id = 'devMenu';
+
+    const title = document.createElement('h2');
+    title.textContent = 'Меню разработчика';
+    title.style.color = 'white';
+    title.style.marginBottom = '20px';
+    devMenu.appendChild(title);
+
+    const consoleButton = document.createElement('button');
+    consoleButton.textContent = 'Открыть консоль';
+    consoleButton.style.padding = '10px 20px';
+    consoleButton.style.margin = '5px';
+    consoleButton.style.backgroundColor = '#3498db';
+    consoleButton.style.color = 'white';
+    consoleButton.style.border = 'none';
+    consoleButton.style.borderRadius = '5px';
+    consoleButton.style.cursor = 'pointer';
+    consoleButton.onclick = () => {
+        const consoleDiv = document.createElement('div');
+        consoleDiv.style.position = 'fixed';
+        consoleDiv.style.bottom = '0';
+        consoleDiv.style.left = '0';
+        consoleDiv.style.right = '0';
+        consoleDiv.style.height = '200px';
+        consoleDiv.style.backgroundColor = '#1e1e1e';
+        consoleDiv.style.color = '#fff';
+        consoleDiv.style.padding = '10px';
+        consoleDiv.style.fontFamily = 'monospace';
+        consoleDiv.style.overflowY = 'auto';
+        consoleDiv.id = 'devConsole';
+        document.body.appendChild(consoleDiv);
+
+        // Override console.log
+        const originalConsoleLog = console.log;
+        console.log = function(...args) {
+            originalConsoleLog.apply(console, args);
+            const message = args.map(arg => 
+                typeof arg === 'object' ? JSON.stringify(arg, null, 2) : arg
+            ).join(' ');
+            const consoleDiv = document.getElementById('devConsole');
+            if (consoleDiv) {
+                const line = document.createElement('div');
+                line.textContent = message;
+                consoleDiv.appendChild(line);
+                consoleDiv.scrollTop = consoleDiv.scrollHeight;
+            }
+        };
+    };
+    devMenu.appendChild(consoleButton);
+
+    const closeButton = document.createElement('button');
+    closeButton.textContent = 'Закрыть';
+    closeButton.style.padding = '10px 20px';
+    closeButton.style.margin = '5px';
+    closeButton.style.backgroundColor = '#e74c3c';
+    closeButton.style.color = 'white';
+    closeButton.style.border = 'none';
+    closeButton.style.borderRadius = '5px';
+    closeButton.style.cursor = 'pointer';
+    closeButton.onclick = () => {
+        devMenu.style.display = 'none';
+        devMenuOpen = false;
+    };
+    devMenu.appendChild(closeButton);
+
+    document.body.appendChild(devMenu);
+}
+
+createDevMenu();
+
+settingsButton.addEventListener('click', () => {
+    settingsClickCount++;
+    if (settingsClickCount >= 14 && !devMenuOpen) {
+        const devMenu = document.getElementById('devMenu');
+        devMenu.style.display = 'block';
+        devMenuOpen = true;
+        settingsClickCount = 0;
+    }
+}); 
