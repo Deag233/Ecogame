@@ -1,6 +1,73 @@
 // Initialize Telegram WebApp
 const tg = window.Telegram.WebApp;
 
+// Add loading screen
+function showLoadingScreen() {
+    const loadingScreen = document.createElement('div');
+    loadingScreen.id = 'loadingScreen';
+    loadingScreen.style.position = 'fixed';
+    loadingScreen.style.top = '0';
+    loadingScreen.style.left = '0';
+    loadingScreen.style.width = '100%';
+    loadingScreen.style.height = '100%';
+    loadingScreen.style.backgroundColor = 'var(--tg-theme-bg-color, #2c3e50)';
+    loadingScreen.style.display = 'flex';
+    loadingScreen.style.flexDirection = 'column';
+    loadingScreen.style.alignItems = 'center';
+    loadingScreen.style.justifyContent = 'center';
+    loadingScreen.style.zIndex = '9999';
+
+    const spinner = document.createElement('div');
+    spinner.style.width = '50px';
+    spinner.style.height = '50px';
+    spinner.style.border = '5px solid var(--tg-theme-hint-color, rgba(255, 255, 255, 0.3))';
+    spinner.style.borderTop = '5px solid var(--tg-theme-button-color, #2481cc)';
+    spinner.style.borderRadius = '50%';
+    spinner.style.animation = 'spin 1s linear infinite';
+
+    const loadingText = document.createElement('div');
+    loadingText.textContent = 'Загрузка...';
+    loadingText.style.marginTop = '20px';
+    loadingText.style.color = 'var(--tg-theme-text-color, white)';
+    loadingText.style.fontSize = '18px';
+
+    const statusText = document.createElement('div');
+    statusText.id = 'loadingStatus';
+    statusText.style.marginTop = '10px';
+    statusText.style.color = 'var(--tg-theme-hint-color, rgba(255, 255, 255, 0.6))';
+    statusText.style.fontSize = '14px';
+
+    const style = document.createElement('style');
+    style.textContent = `
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    `;
+
+    loadingScreen.appendChild(spinner);
+    loadingScreen.appendChild(loadingText);
+    loadingScreen.appendChild(statusText);
+    document.head.appendChild(style);
+    document.body.appendChild(loadingScreen);
+}
+
+function updateLoadingStatus(message) {
+    const statusText = document.getElementById('loadingStatus');
+    if (statusText) {
+        statusText.textContent = message;
+    }
+}
+
+function hideLoadingScreen() {
+    const loadingScreen = document.getElementById('loadingScreen');
+    if (loadingScreen) {
+        loadingScreen.style.opacity = '0';
+        loadingScreen.style.transition = 'opacity 0.5s ease-out';
+        setTimeout(() => loadingScreen.remove(), 500);
+    }
+}
+
 // Check if the game is opened through Telegram
 if (!tg.initDataUnsafe?.user?.id) {
     document.body.innerHTML = `
@@ -12,6 +79,45 @@ if (!tg.initDataUnsafe?.user?.id) {
     `;
     throw new Error('Game must be opened through Telegram bot');
 }
+
+// Show loading screen
+showLoadingScreen();
+updateLoadingStatus('Инициализация игры...');
+
+// Initialize game
+async function initializeGame() {
+    try {
+        // Check API status
+        updateLoadingStatus('Проверка соединения с сервером...');
+        const apiStatus = await checkApiStatus();
+        if (!apiStatus) {
+            throw new Error('Сервер недоступен');
+        }
+
+        // Load game state
+        updateLoadingStatus('Загрузка сохраненного прогресса...');
+        await loadGameState();
+
+        // Initialize UI
+        updateLoadingStatus('Загрузка интерфейса...');
+        tg.expand();
+        updateUI();
+
+        // Create dev menu
+        updateLoadingStatus('Инициализация дополнительных функций...');
+        createDevMenu();
+
+        // Hide loading screen
+        hideLoadingScreen();
+    } catch (error) {
+        console.error('Initialization error:', error);
+        updateLoadingStatus(`Ошибка: ${error.message}`);
+        showNotification(`Ошибка инициализации: ${error.message}`, true);
+    }
+}
+
+// Start initialization
+initializeGame();
 
 tg.expand();
 
