@@ -74,24 +74,25 @@ async function saveGameState() {
             return;
         }
 
+        // Create a deep copy of the game state to ensure all values are included
         const saveData = {
             telegramId,
             username: tg.initDataUnsafe?.user?.username,
             gameState: {
-                score: gameState.score,
-                multiplier: gameState.multiplier,
+                score: Number(gameState.score),
+                multiplier: Number(gameState.multiplier),
                 upgrades: {
                     autoClicker: {
-                        level: gameState.upgrades.autoClicker.level,
-                        cost: gameState.upgrades.autoClicker.cost,
-                        baseCost: gameState.upgrades.autoClicker.baseCost,
-                        clicksPerSecond: gameState.upgrades.autoClicker.clicksPerSecond
+                        level: Number(gameState.upgrades.autoClicker.level),
+                        cost: Number(gameState.upgrades.autoClicker.cost),
+                        baseCost: Number(gameState.upgrades.autoClicker.baseCost),
+                        clicksPerSecond: Number(gameState.upgrades.autoClicker.clicksPerSecond)
                     },
                     clickPower: {
-                        level: gameState.upgrades.clickPower.level,
-                        cost: gameState.upgrades.clickPower.cost,
-                        baseCost: gameState.upgrades.clickPower.baseCost,
-                        power: gameState.upgrades.clickPower.power
+                        level: Number(gameState.upgrades.clickPower.level),
+                        cost: Number(gameState.upgrades.clickPower.cost),
+                        baseCost: Number(gameState.upgrades.clickPower.baseCost),
+                        power: Number(gameState.upgrades.clickPower.power)
                     }
                 }
             }
@@ -120,11 +121,14 @@ async function saveGameState() {
         const savedData = await response.json();
         console.log('Game state saved successfully:', JSON.stringify(savedData, null, 2));
         
-        tg.showPopup({
-            title: 'Сохранено',
-            message: 'Прогресс успешно сохранен!',
-            buttons: [{ type: 'ok' }]
-        });
+        // Only show success popup if score has changed
+        if (savedData.score !== gameState.score) {
+            tg.showPopup({
+                title: 'Сохранено',
+                message: 'Прогресс успешно сохранен!',
+                buttons: [{ type: 'ok' }]
+            });
+        }
     } catch (error) {
         console.error('Error saving game state:', error);
         tg.showPopup({
