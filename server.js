@@ -52,19 +52,37 @@ app.options('/api/players', cors());
 app.get('/api/players/:telegramId', async (req, res) => {
     try {
         const { telegramId } = req.params;
-        console.log('GET request for player:', telegramId);
+        console.log('GET запрос для игрока:', telegramId);
+        console.log('Тип telegramId:', typeof telegramId);
         
-        const player = await client.db('econoch').collection('players').findOne({ telegramId: String(telegramId) });
-        console.log('Found player:', player);
+        // Проверяем подключение к MongoDB
+        if (!client.isConnected()) {
+            console.error('MongoDB не подключен');
+            return res.status(500).json({ error: 'Database connection error' });
+        }
+        
+        const db = client.db('econoch');
+        console.log('База данных:', db.databaseName);
+        
+        const collection = db.collection('players');
+        console.log('Коллекция:', collection.collectionName);
+        
+        const query = { telegramId: String(telegramId) };
+        console.log('Запрос:', query);
+        
+        const player = await collection.findOne(query);
+        console.log('Найден игрок:', player);
         
         if (player) {
+            console.log('Отправляем данные игрока');
             res.json(player);
         } else {
-            console.log('Player not found, returning 404');
+            console.log('Игрок не найден, возвращаем 404');
             res.status(404).json({ error: 'Player not found' });
         }
     } catch (error) {
-        console.error('Error fetching player:', error);
+        console.error('Ошибка при получении игрока:', error);
+        console.error('Стек ошибки:', error.stack);
         res.status(500).json({ error: 'Internal server error', details: error.message });
     }
 });
