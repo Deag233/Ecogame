@@ -281,51 +281,60 @@ async function saveGameState() {
 
         console.log('Saving game state:', saveData);
 
-        // First try to update existing player
-        const updateResponse = await fetch(`${API_URL}/players/${telegramId}`, {
-            method: 'PUT',
-            headers: {
-                'Content-Type': 'application/json',
-                'Accept': 'application/json'
-            },
-            body: JSON.stringify(saveData)
-        });
-
-        let response;
-        if (updateResponse.status === 404) {
-            // If player doesn't exist, create new
-            console.log('Player not found, creating new...');
-            response = await fetch(`${API_URL}/players`, {
-                method: 'POST',
+        // If we have an _id, use PUT to update
+        if (gameState._id) {
+            console.log('Updating existing player with _id:', gameState._id);
+            const updateResponse = await fetch(`${API_URL}/players/${gameState._id}`, {
+                method: 'PUT',
                 headers: {
                     'Content-Type': 'application/json',
                     'Accept': 'application/json'
                 },
                 body: JSON.stringify(saveData)
             });
-        } else {
-            response = updateResponse;
+
+            if (updateResponse.ok) {
+                const savedData = await updateResponse.json();
+                console.log('Game state updated successfully:', savedData);
+                
+                // Update local gameState with saved data
+                gameState = {
+                    ...gameState,
+                    ...savedData
+                };
+                
+                showNotification('Прогресс сохранен');
+                return;
+            } else {
+                console.log('Update failed, trying to create new player');
+            }
+        }
+
+        // If no _id or update failed, create new player
+        console.log('Creating new player...');
+        const createResponse = await fetch(`${API_URL}/players`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Accept': 'application/json'
+            },
+            body: JSON.stringify(saveData)
+        });
+        
+        if (!createResponse.ok) {
+            const errorData = await createResponse.json().catch(() => ({ error: 'Unknown error' }));
+            console.error('Create error response:', errorData);
+            showNotification(`Ошибка сохранения: ${errorData.error || createResponse.statusText}`, true);
+            throw new Error(`Failed to save game state: ${errorData.error || createResponse.statusText}`);
         }
         
-        console.log('Save response status:', response.status);
-        console.log('Save response headers:', Object.fromEntries(response.headers.entries()));
-        
-        if (!response.ok) {
-            const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
-            console.error('Save error response:', errorData);
-            showNotification(`Ошибка сохранения: ${errorData.error || response.statusText}`, true);
-            throw new Error(`Failed to save game state: ${errorData.error || response.statusText}`);
-        }
-        
-        const savedData = await response.json();
-        console.log('Game state saved successfully:', savedData);
+        const savedData = await createResponse.json();
+        console.log('Game state created successfully:', savedData);
         
         // Update local gameState with saved data
         gameState = {
             ...gameState,
-            _id: savedData._id,
-            lastUpdated: savedData.lastUpdated,
-            __v: savedData.__v
+            ...savedData
         };
         
         showNotification('Прогресс сохранен');
