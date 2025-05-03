@@ -1,5 +1,18 @@
 // Initialize Telegram WebApp
 const tg = window.Telegram.WebApp;
+
+// Check if the game is opened through Telegram
+if (!tg.initDataUnsafe?.user?.id) {
+    document.body.innerHTML = `
+        <div style="text-align: center; padding: 20px; font-family: Arial, sans-serif;">
+            <h2>Пожалуйста, откройте игру через Telegram бота</h2>
+            <p>Эта игра работает только внутри Telegram.</p>
+            <p>Откройте бота и нажмите кнопку "Играть" или используйте команду /start</p>
+        </div>
+    `;
+    throw new Error('Game must be opened through Telegram bot');
+}
+
 tg.expand();
 
 // Log Telegram data for debugging
@@ -73,27 +86,27 @@ async function saveGameState() {
         const saveData = {
             telegramId,
             username: tg.initDataUnsafe?.user?.username,
-            gameState: {
-                score: Number(gameState.score),
-                multiplier: Number(gameState.multiplier),
-                upgrades: {
-                    autoClicker: {
-                        level: Number(gameState.upgrades.autoClicker.level),
-                        cost: Number(gameState.upgrades.autoClicker.cost),
-                        baseCost: Number(gameState.upgrades.autoClicker.baseCost),
-                        clicksPerSecond: Number(gameState.upgrades.autoClicker.clicksPerSecond)
-                    },
-                    clickPower: {
-                        level: Number(gameState.upgrades.clickPower.level),
-                        cost: Number(gameState.upgrades.clickPower.cost),
-                        baseCost: Number(gameState.upgrades.clickPower.baseCost),
-                        power: Number(gameState.upgrades.clickPower.power)
-                    }
+            score: Number(gameState.score),
+            multiplier: Number(gameState.multiplier),
+            upgrades: {
+                autoClicker: {
+                    level: Number(gameState.upgrades.autoClicker.level),
+                    cost: Number(gameState.upgrades.autoClicker.cost),
+                    baseCost: Number(gameState.upgrades.autoClicker.baseCost),
+                    clicksPerSecond: Number(gameState.upgrades.autoClicker.clicksPerSecond)
+                },
+                clickPower: {
+                    level: Number(gameState.upgrades.clickPower.level),
+                    cost: Number(gameState.upgrades.clickPower.cost),
+                    baseCost: Number(gameState.upgrades.clickPower.baseCost),
+                    power: Number(gameState.upgrades.clickPower.power)
                 }
             }
         };
 
-        console.log('Attempting to save game state:', JSON.stringify(saveData, null, 2));
+        console.log('=== SAVE REQUEST START ===');
+        console.log('Sending save request with data:', JSON.stringify(saveData, null, 2));
+        console.log('API URL:', API_URL);
 
         const response = await fetch(`${API_URL}/players`, {
             method: 'POST',
@@ -114,9 +127,11 @@ async function saveGameState() {
         }
         
         const savedData = await response.json();
-        console.log('Game state saved successfully:', JSON.stringify(savedData, null, 2));
+        console.log('Save response:', JSON.stringify(savedData, null, 2));
+        console.log('=== SAVE REQUEST END ===');
     } catch (error) {
         console.error('Error saving game state:', error);
+        console.error('Error details:', error.stack);
     }
 }
 
