@@ -10,11 +10,24 @@ app.use(cors());
 app.use(express.json());
 
 // File storage path
-const STORAGE_FILE = path.join(__dirname, 'game_data.json');
+const DATA_DIR = path.join(__dirname, 'data');
+const STORAGE_FILE = path.join(DATA_DIR, 'game_data.json');
+
+// Ensure data directory exists
+async function ensureDataDir() {
+    try {
+        await fs.mkdir(DATA_DIR, { recursive: true });
+        console.log('Data directory created/verified:', DATA_DIR);
+    } catch (error) {
+        console.error('Error creating data directory:', error);
+        throw error;
+    }
+}
 
 // Load data from file
 async function loadData() {
     try {
+        await ensureDataDir();
         console.log('Loading data from file:', STORAGE_FILE);
         const data = await fs.readFile(STORAGE_FILE, 'utf8');
         console.log('Loaded data:', data);
@@ -34,6 +47,7 @@ async function loadData() {
 // Save data to file
 async function saveData(data) {
     try {
+        await ensureDataDir();
         console.log('Saving data to file:', STORAGE_FILE);
         console.log('Data to save:', data);
         await fs.writeFile(STORAGE_FILE, JSON.stringify(data, null, 2));
