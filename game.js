@@ -2,6 +2,13 @@
 const tg = window.Telegram.WebApp;
 tg.expand();
 
+// Log Telegram data for debugging
+console.log('Telegram WebApp data:', {
+    initData: tg.initData,
+    initDataUnsafe: tg.initDataUnsafe,
+    user: tg.initDataUnsafe?.user
+});
+
 // API URL - будет заменен на реальный URL после деплоя
 const API_URL = 'https://econoch.onrender.com/api';
 
@@ -53,14 +60,25 @@ function updateUI() {
 // Save game state to server
 async function saveGameState() {
     try {
-        console.log('Saving game state:', gameState);
+        const telegramId = tg.initDataUnsafe?.user?.id;
+        if (!telegramId) {
+            console.error('No Telegram user ID available');
+            return;
+        }
+
+        console.log('Saving game state for user:', {
+            telegramId,
+            username: tg.initDataUnsafe?.user?.username,
+            gameState
+        });
+
         const response = await fetch(`${API_URL}/players`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
             },
             body: JSON.stringify({
-                telegramId: tg.initDataUnsafe?.user?.id,
+                telegramId,
                 username: tg.initDataUnsafe?.user?.username,
                 gameState: gameState
             })
