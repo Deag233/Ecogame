@@ -1,5 +1,7 @@
 const express = require('express');
 const cors = require('cors');
+const fs = require('fs').promises;
+const path = require('path');
 
 const app = express();
 
@@ -7,11 +9,31 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-// In-memory storage
-const players = new Map();
+// File storage path
+const STORAGE_FILE = path.join(__dirname, 'game_data.json');
+
+// Load data from file
+async function loadData() {
+    try {
+        const data = await fs.readFile(STORAGE_FILE, 'utf8');
+        return JSON.parse(data);
+    } catch (error) {
+        if (error.code === 'ENOENT') {
+            // File doesn't exist, create empty storage
+            await fs.writeFile(STORAGE_FILE, JSON.stringify({}));
+            return {};
+        }
+        throw error;
+    }
+}
+
+// Save data to file
+async function saveData(data) {
+    await fs.writeFile(STORAGE_FILE, JSON.stringify(data, null, 2));
+}
 
 // API Routes
-app.post('/api/players', (req, res) => {
+app.post('/api/players', async (req, res) => {
     try {
         console.log('Received save request:', req.body);
         const { telegramId, username, gameState } = req.body;
@@ -33,7 +55,10 @@ app.post('/api/players', (req, res) => {
             lastUpdated: new Date()
         };
         
-        players.set(telegramId, player);
+        const data = await loadData();
+        data[telegramId] = player;
+        await saveData(data);
+        
         console.log('Saved player data:', player);
         res.json(player);
     } catch (error) {
@@ -42,14 +67,17 @@ app.post('/api/players', (req, res) => {
     }
 });
 
-app.get('/api/players/:telegramId', (req, res) => {
+app.get('/api/players/:telegramId', async (req, res) => {
     try {
         console.log('Received load request for player:', req.params.telegramId);
-        const player = players.get(req.params.telegramId);
+        const data = await loadData();
+        const player = data[req.params.telegramId];
+        
         if (!player) {
             console.log('Player not found:', req.params.telegramId);
             return res.status(404).json({ error: 'Player not found' });
         }
+        
         console.log('Returning player data:', player);
         res.json(player);
     } catch (error) {
@@ -58,9 +86,10 @@ app.get('/api/players/:telegramId', (req, res) => {
     }
 });
 
-app.get('/api/leaderboard', (req, res) => {
+app.get('/api/leaderboard', async (req, res) => {
     try {
-        const leaderboard = Array.from(players.values())
+        const data = await loadData();
+        const leaderboard = Object.values(data)
             .sort((a, b) => b.score - a.score)
             .slice(0, 10)
             .map(({ username, score }) => ({ username, score }));
