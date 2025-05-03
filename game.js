@@ -324,6 +324,12 @@ let settingsClickCount = 0;
 let devMenuOpen = false;
 
 function createDevMenu() {
+    // Remove existing dev menu if it exists
+    const existingMenu = document.getElementById('devMenu');
+    if (existingMenu) {
+        existingMenu.remove();
+    }
+
     const devMenu = document.createElement('div');
     devMenu.style.position = 'fixed';
     devMenu.style.top = '50%';
@@ -335,6 +341,7 @@ function createDevMenu() {
     devMenu.style.zIndex = '1001';
     devMenu.style.display = 'none';
     devMenu.style.boxShadow = '0 0 20px rgba(0, 0, 0, 0.3)';
+    devMenu.style.minWidth = '300px';
     devMenu.id = 'devMenu';
 
     const title = document.createElement('h2');
@@ -355,6 +362,12 @@ function createDevMenu() {
     consoleButton.style.cursor = 'pointer';
     consoleButton.style.width = '100%';
     consoleButton.onclick = () => {
+        // Remove existing console if it exists
+        const existingConsole = document.getElementById('devConsole');
+        if (existingConsole) {
+            existingConsole.remove();
+        }
+
         const consoleDiv = document.createElement('div');
         consoleDiv.style.position = 'fixed';
         consoleDiv.style.bottom = '60px';
@@ -385,6 +398,15 @@ function createDevMenu() {
                 consoleDiv.scrollTop = consoleDiv.scrollHeight;
             }
         };
+
+        // Log initial state
+        console.log('Developer console opened');
+        console.log('Current game state:', gameState);
+        console.log('Telegram WebApp data:', {
+            initData: tg.initData,
+            initDataUnsafe: tg.initDataUnsafe,
+            user: tg.initDataUnsafe?.user
+        });
     };
     devMenu.appendChild(consoleButton);
 
@@ -401,20 +423,39 @@ function createDevMenu() {
     closeButton.onclick = () => {
         devMenu.style.display = 'none';
         devMenuOpen = false;
+        // Remove console when closing menu
+        const consoleDiv = document.getElementById('devConsole');
+        if (consoleDiv) {
+            consoleDiv.remove();
+        }
     };
     devMenu.appendChild(closeButton);
 
     document.body.appendChild(devMenu);
+    console.log('Developer menu created');
 }
 
+// Create dev menu when the page loads
 createDevMenu();
 
-settingsButton.addEventListener('click', () => {
-    settingsClickCount++;
-    if (settingsClickCount >= 14 && !devMenuOpen) {
-        const devMenu = document.getElementById('devMenu');
-        devMenu.style.display = 'block';
-        devMenuOpen = true;
-        settingsClickCount = 0;
-    }
-}); 
+// Add click handler for settings button
+if (settingsButton) {
+    console.log('Settings button found, adding click handler');
+    settingsButton.addEventListener('click', () => {
+        console.log('Settings button clicked, count:', settingsClickCount + 1);
+        settingsClickCount++;
+        if (settingsClickCount >= 14 && !devMenuOpen) {
+            console.log('Opening developer menu');
+            const devMenu = document.getElementById('devMenu');
+            if (devMenu) {
+                devMenu.style.display = 'block';
+                devMenuOpen = true;
+                settingsClickCount = 0;
+            } else {
+                console.error('Developer menu not found');
+            }
+        }
+    });
+} else {
+    console.error('Settings button not found');
+} 
