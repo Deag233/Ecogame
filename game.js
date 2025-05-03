@@ -127,8 +127,6 @@ async function debouncedSave() {
 
 // Update UI and save state
 async function updateUI() {
-    console.log('Updating UI, current gameState:', gameState);
-    
     if (!gameState) {
         console.error('gameState is not initialized in updateUI');
         gameState = initializeGameState();
@@ -152,8 +150,6 @@ async function updateUI() {
 // Update saveGameState function
 async function saveGameState() {
     try {
-        console.log('Starting saveGameState, current gameState:', gameState);
-        
         const telegramId = tg.initDataUnsafe?.user?.id;
         if (!telegramId) {
             showNotification('Ошибка: ID пользователя не найден', true);
@@ -188,8 +184,6 @@ async function saveGameState() {
             }
         };
 
-        console.log('Preparing to save game state:', saveData);
-
         const response = await fetch(`${API_URL}/players`, {
             method: 'POST',
             headers: {
@@ -206,7 +200,6 @@ async function saveGameState() {
         }
         
         const savedData = await response.json();
-        console.log('Game state saved successfully:', savedData);
         showNotification('Прогресс сохранен');
 
     } catch (error) {
