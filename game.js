@@ -2,6 +2,9 @@
 const tg = window.Telegram.WebApp;
 tg.expand();
 
+// API URL - будет заменен на реальный URL после деплоя
+const API_URL = 'https://telegram-clicker-game.onrender.com/api';
+
 // Game state
 let gameState = {
     score: 0,
@@ -47,6 +50,48 @@ function updateUI() {
     upgrade2Button.disabled = gameState.score < gameState.upgrades.clickPower.cost;
 }
 
+// Save game state to server
+async function saveGameState() {
+    try {
+        const response = await fetch(`${API_URL}/players`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                telegramId: tg.initDataUnsafe?.user?.id,
+                username: tg.initDataUnsafe?.user?.username,
+                gameState: gameState
+            })
+        });
+        
+        if (!response.ok) {
+            throw new Error('Failed to save game state');
+        }
+    } catch (error) {
+        console.error('Error saving game state:', error);
+    }
+}
+
+// Load game state from server
+async function loadGameState() {
+    try {
+        const response = await fetch(`${API_URL}/players/${tg.initDataUnsafe?.user?.id}`);
+        
+        if (response.ok) {
+            const data = await response.json();
+            gameState = {
+                score: data.score,
+                multiplier: data.multiplier,
+                upgrades: data.upgrades
+            };
+            updateUI();
+        }
+    } catch (error) {
+        console.error('Error loading game state:', error);
+    }
+}
+
 // Click handler
 function handleClick() {
     gameState.score += gameState.multiplier * gameState.upgrades.clickPower.power;
@@ -88,24 +133,11 @@ upgrade2Button.addEventListener('click', buyClickPower);
 // Start auto clicker
 setInterval(autoClick, 1000);
 
-// Initial UI update
-updateUI();
-
 // Save game state periodically
-setInterval(() => {
-    tg.sendData(JSON.stringify(gameState));
-}, 5000);
+setInterval(saveGameState, 5000);
 
-// Load saved game state if available
-tg.onEvent('viewportChanged', function() {
-    const savedState = tg.initDataUnsafe?.start_param;
-    if (savedState) {
-        try {
-            const parsedState = JSON.parse(savedState);
-            gameState = parsedState;
-            updateUI();
-        } catch (e) {
-            console.error('Failed to parse saved state:', e);
-        }
-    }
-}); 
+// Load game state when app starts
+loadGameState();
+
+// Initial UI update
+updateUI(); 
