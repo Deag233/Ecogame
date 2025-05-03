@@ -207,7 +207,10 @@ function checkTelegramData() {
         initData: tg.initData,
         initDataUnsafe: tg.initDataUnsafe,
         user: tg.initDataUnsafe?.user,
-        id: tg.initDataUnsafe?.user?.id
+        id: tg.initDataUnsafe?.user?.id,
+        version: window.Telegram.WebApp.version,
+        platform: window.Telegram.WebApp.platform,
+        colorScheme: window.Telegram.WebApp.colorScheme
     });
     
     if (!window.Telegram) {

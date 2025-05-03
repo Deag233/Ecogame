@@ -1,292 +1,234 @@
 const express = require('express');
-const { MongoClient } = require('mongodb');
 const cors = require('cors');
-require('dotenv').config();
+const fs = require('fs').promises;
+const path = require('path');
 
 const app = express();
-const port = 3001;
+const PORT = process.env.PORT || 3001;
 
 // Middleware
 app.use(cors());
 app.use(express.json());
 
-// Добавляем middleware для логирования
-app.use((req, res, next) => {
-    console.log(`${new Date().toISOString()} - ${req.method} ${req.url}`);
-    console.log('Headers:', req.headers);
-    console.log('Body:', req.body);
-    next();
-});
+// Путь к файлу с данными
+const DATA_FILE = path.join(__dirname, 'data', 'players.json');
 
-// MongoDB connection
-const uri = 'mongodb+srv://econoch:DeaG16181822@cluster0.zweknv6.mongodb.net/econoch?retryWrites=true&w=majority&appName=Cluster0';
-const client = new MongoClient(uri, {
-    serverSelectionTimeoutMS: 5000,
-    connectTimeoutMS: 10000,
-    socketTimeoutMS: 45000,
-    maxPoolSize: 10,
-    minPoolSize: 5,
-    maxIdleTimeMS: 30000,
-    retryWrites: true,
-    retryReads: true
-});
-
-// Функция для проверки подключения к MongoDB
-async function checkMongoConnection() {
+// Функция для создания директории и файла, если они не существуют
+async function ensureDataFile() {
     try {
-        console.log('Проверка подключения к MongoDB...');
-        if (!client.topology || !client.topology.isConnected()) {
-            console.log('Переподключение к MongoDB...');
-            await client.connect();
+        // Создаем директорию data, если её нет
+        await fs.mkdir(path.join(__dirname, 'data'), { recursive: true });
+        
+        // Проверяем существование файла
+        try {
+            await fs.access(DATA_FILE);
+        } catch {
+            // Если файл не существует, создаем его с пустым массивом
+            await fs.writeFile(DATA_FILE, JSON.stringify([], null, 2));
+            console.log('Created new data file');
         }
-        
-        const db = client.db('econoch');
-        console.log('Подключение к базе данных:', db.databaseName);
-        
-        // Проверяем доступность коллекции
-        const collections = await db.listCollections().toArray();
-        console.log('Доступные коллекции:', collections.map(c => c.name));
-        
-        // Проверяем индексы
-        const playersCollection = db.collection('players');
-        const indexes = await playersCollection.indexes();
-        console.log('Индексы коллекции players:', indexes);
-        
+    } catch (error) {
+        console.error('Error ensuring data file:', error);
+        throw error;
+    }
+}
+
+// Функция для чтения данных
+async function readData() {
+    try {
+        const data = await fs.readFile(DATA_FILE, 'utf8');
+        return JSON.parse(data);
+    } catch (error) {
+        console.error('Error reading data:', error);
+        return [];
+    }
+}
+
+// Функция для записи данных
+async function writeData(data) {
+    try {
+        await fs.writeFile(DATA_FILE, JSON.stringify(data, null, 2));
         return true;
     } catch (error) {
-        console.error('Ошибка подключения к MongoDB:', error);
-        console.error('Детали ошибки:', {
-            name: error.name,
-            message: error.message,
-            code: error.code,
-            stack: error.stack
-        });
+        console.error('Error writing data:', error);
         return false;
     }
 }
 
-// Проверяем подключение при старте
-client.connect()
-    .then(async () => {
-        console.log('Connected to MongoDB');
-        const isConnected = await checkMongoConnection();
-        if (!isConnected) {
-            console.error('Не удалось установить стабильное подключение к MongoDB');
-            process.exit(1);
-        }
-    })
-    .catch(err => {
-        console.error('Failed to connect to MongoDB:', err);
-        process.exit(1);
-    });
+// Функция для создания бэкапа
+async function createBackup() {
+    try {
+        const data = await readData();
+        const backupDir = path.join(__dirname, 'backups');
+        await fs.mkdir(backupDir, { recursive: true });
+        
+        const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+        const backupFile = path.join(backupDir, `backup-${timestamp}.json`);
+        
+        await fs.writeFile(backupFile, JSON.stringify({
+            timestamp: new Date().toISOString(),
+            totalPlayers: data.length,
+            players: data
+        }, null, 2));
+        
+        console.log(`Backup created: ${backupFile}`);
+        return true;
+    } catch (error) {
+        console.error('Error creating backup:', error);
+        return false;
+    }
+}
 
-// Добавляем обработчик для проверки состояния подключения
+// Создаем бэкап каждый час
+setInterval(createBackup, 3600000);
+
+// Routes
 app.get('/api/status', async (req, res) => {
     try {
-        const isConnected = await checkMongoConnection();
-        if (!isConnected) {
-            return res.status(500).json({
-                status: 'error',
-                message: 'Database connection error',
-                timestamp: new Date()
-            });
-        }
-        
+        await ensureDataFile();
         res.json({
             status: 'ok',
-            database: 'econoch',
-            connection: 'active',
-            timestamp: new Date()
+            timestamp: new Date().toISOString(),
+            storage: 'json'
         });
     } catch (error) {
-        console.error('Ошибка проверки статуса:', error);
-        res.status(500).json({
-            status: 'error',
-            message: error.message,
-            timestamp: new Date()
-        });
-    }
-});
-
-// Добавляем обработчик для проверки коллекции
-app.get('/api/collections', async (req, res) => {
-    try {
-        const db = client.db('econoch');
-        const collections = await db.listCollections().toArray();
-        
-        res.json({
-            status: 'ok',
-            collections: collections.map(c => ({
-                name: c.name,
-                type: c.type,
-                options: c.options
-            })),
-            timestamp: new Date()
-        });
-    } catch (error) {
-        console.error('Ошибка получения списка коллекций:', error);
-        res.status(500).json({
-            status: 'error',
-            message: error.message,
-            timestamp: new Date()
-        });
-    }
-});
-
-// Add OPTIONS route for CORS preflight
-app.options('/api/players/:telegramId', cors());
-app.options('/api/players', cors());
-
-// Добавляем проверку статуса сервера
-app.get('/api/players', async (req, res) => {
-    try {
-        // Проверяем подключение к MongoDB
-        if (!client.topology || !client.topology.isConnected()) {
-            console.error('MongoDB не подключен');
-            return res.status(500).json({ error: 'Database connection error' });
-        }
-
-        const db = client.db('econoch');
-        const collections = await db.listCollections().toArray();
-        
-        res.json({ 
-            status: 'ok',
-            database: 'econoch',
-            collections: collections.map(c => c.name),
-            serverTime: new Date()
-        });
-    } catch (error) {
-        console.error('Ошибка проверки статуса:', error);
+        console.error('Status check error:', error);
         res.status(500).json({ error: 'Internal server error', details: error.message });
     }
 });
 
-// Routes
 app.get('/api/players/:telegramId', async (req, res) => {
+    const timestamp = new Date().toISOString();
+    console.log(`[${timestamp}] GET /api/players/${req.params.telegramId}`);
+    console.log('Request headers:', req.headers);
+    console.log('Request query:', req.query);
+    console.log('Request body:', req.body);
+
     try {
-        const { telegramId } = req.params;
-        const telegramUserId = req.headers['x-telegram-user-id'];
-        const telegramVersion = req.headers['x-telegram-version'];
+        await ensureDataFile();
+        const players = await readData();
+        console.log('Current players in database:', players);
         
-        console.log('GET запрос для игрока:', {
-            paramId: telegramId,
-            headerId: telegramUserId,
-            version: telegramVersion,
-            headers: req.headers,
-            timestamp: new Date()
-        });
+        const player = players.find(p => p.telegramId === req.params.telegramId);
+        console.log('Found player:', player);
         
-        // Проверяем подключение к MongoDB
-        if (!client.topology || !client.topology.isConnected()) {
-            console.error('MongoDB не подключен');
-            return res.status(500).json({ 
-                error: 'Database connection error',
-                details: {
-                    timestamp: new Date(),
-                    headers: req.headers
-                }
-            });
-        }
-        
-        const db = client.db('econoch');
-        console.log('База данных:', db.databaseName);
-        
-        const collection = db.collection('players');
-        console.log('Коллекция:', collection.collectionName);
-        
-        const query = { telegramId: String(telegramId) };
-        console.log('Запрос:', query);
-        
-        const player = await collection.findOne(query);
-        console.log('Найден игрок:', player);
-        
-        if (player) {
-            console.log('Отправляем данные игрока');
-            res.json(player);
-        } else {
-            console.log('Игрок не найден, возвращаем 404');
-            res.status(404).json({ 
+        if (!player) {
+            console.log(`Player not found: ${req.params.telegramId}`);
+            return res.status(404).json({
                 error: 'Player not found',
-                details: {
-                    telegramId: telegramId,
-                    query: query,
-                    timestamp: new Date(),
-                    headers: req.headers
-                }
+                timestamp,
+                telegramId: req.params.telegramId
             });
         }
+
+        console.log(`Player found: ${req.params.telegramId}`);
+        res.json(player);
     } catch (error) {
-        console.error('Ошибка при получении игрока:', error);
-        console.error('Стек ошибки:', error.stack);
-        res.status(500).json({ 
-            error: 'Internal server error', 
-            details: {
-                message: error.message,
-                path: req.path,
-                method: req.method,
-                timestamp: new Date(),
-                headers: req.headers
-            }
+        console.error('Error fetching player:', error);
+        console.error('Error stack:', error.stack);
+        res.status(500).json({
+            error: 'Internal server error',
+            message: error.message,
+            timestamp,
+            telegramId: req.params.telegramId
         });
     }
 });
 
 app.post('/api/players', async (req, res) => {
+    const timestamp = new Date().toISOString();
+    console.log(`[${timestamp}] POST /api/players`);
+    console.log('Request headers:', req.headers);
+    console.log('Request body:', req.body);
+
     try {
-        const player = req.body;
-        console.log('POST request with data:', player);
+        await ensureDataFile();
+        const players = await readData();
+        console.log('Current players in database:', players);
         
-        if (!player.telegramId) {
-            console.error('Missing telegramId in request');
-            return res.status(400).json({ error: 'Missing telegramId' });
+        // Проверяем, существует ли уже игрок с таким telegramId
+        const existingPlayer = players.find(p => p.telegramId === req.body.telegramId);
+        if (existingPlayer) {
+            console.log('Player already exists:', existingPlayer);
+            return res.status(400).json({
+                error: 'Player already exists',
+                timestamp,
+                telegramId: req.body.telegramId
+            });
         }
+
+        // Создаем нового игрока
+        const newPlayer = {
+            ...req.body,
+            createdAt: new Date().toISOString()
+        };
+        console.log('Creating new player:', newPlayer);
         
-        // Convert telegramId to string
-        player.telegramId = String(player.telegramId);
+        players.push(newPlayer);
+        await writeData(players);
+        await createBackup();
         
-        const result = await client.db('econoch').collection('players').insertOne(player);
-        console.log('Insert result:', result);
-        
-        res.status(201).json({ ...player, _id: result.insertedId });
+        console.log(`New player created: ${newPlayer.telegramId}`);
+        res.status(201).json(newPlayer);
     } catch (error) {
         console.error('Error creating player:', error);
-        res.status(500).json({ error: 'Internal server error', details: error.message });
+        console.error('Error stack:', error.stack);
+        res.status(500).json({
+            error: 'Internal server error',
+            message: error.message,
+            timestamp,
+            telegramId: req.body?.telegramId
+        });
     }
 });
 
 app.put('/api/players/:telegramId', async (req, res) => {
+    const timestamp = new Date().toISOString();
+    console.log(`[${timestamp}] PUT /api/players/${req.params.telegramId}`);
+    console.log('Request body:', req.body);
+
     try {
-        const { telegramId } = req.params;
-        const player = req.body;
-        console.log('PUT request for player:', telegramId);
-        console.log('Update data:', player);
+        await ensureDataFile();
+        const players = await readData();
+        const playerIndex = players.findIndex(p => p.telegramId === req.params.telegramId);
         
-        // Convert telegramId to string
-        const query = { telegramId: String(telegramId) };
-        
-        const result = await client.db('econoch').collection('players').updateOne(
-            query,
-            { $set: { ...player, lastUpdated: new Date() } },
-            { upsert: true }
-        );
-        
-        console.log('Update result:', result);
-        
-        if (result.matchedCount > 0) {
-            res.json({ message: 'Player updated successfully', result });
-        } else if (result.upsertedCount > 0) {
-            res.json({ message: 'Player created successfully', result });
-        } else {
-            res.status(404).json({ error: 'Player not found' });
+        if (playerIndex === -1) {
+            console.log(`Player not found for update: ${req.params.telegramId}`);
+            return res.status(404).json({
+                error: 'Player not found',
+                timestamp
+            });
         }
+
+        // Обновляем данные игрока
+        players[playerIndex] = {
+            ...players[playerIndex],
+            ...req.body,
+            updatedAt: new Date().toISOString()
+        };
+        
+        await writeData(players);
+        await createBackup();
+        
+        console.log(`Player updated: ${req.params.telegramId}`);
+        res.json(players[playerIndex]);
     } catch (error) {
         console.error('Error updating player:', error);
-        res.status(500).json({ error: 'Internal server error', details: error.message });
+        res.status(500).json({
+            error: 'Internal server error',
+            message: error.message,
+            timestamp
+        });
     }
 });
 
-// Start the server
-const PORT = process.env.PORT || 3001;
+// Запускаем сервер
 app.listen(PORT, () => {
-    console.log(`Server running on port ${PORT}`);
+    console.log(`Server is running on port ${PORT}`);
+    console.log('Using JSON file storage');
+    
+    // Создаем файл данных при запуске
+    ensureDataFile()
+        .then(() => console.log('Data file initialized'))
+        .catch(err => console.error('Error initializing data file:', err));
 }); 
