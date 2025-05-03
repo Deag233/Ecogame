@@ -10,6 +10,14 @@ const port = 3001;
 app.use(cors());
 app.use(express.json());
 
+// Добавляем middleware для логирования
+app.use((req, res, next) => {
+    console.log(`${new Date().toISOString()} - ${req.method} ${req.url}`);
+    console.log('Headers:', req.headers);
+    console.log('Body:', req.body);
+    next();
+});
+
 // MongoDB connection string
 const uri = 'mongodb+srv://econoch:DeaG16181822@cluster0.zweknv6.mongodb.net/econoch?retryWrites=true&w=majority&appName=Cluster0';
 const client = new MongoClient(uri);

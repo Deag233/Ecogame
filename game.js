@@ -99,30 +99,40 @@ document.addEventListener('DOMContentLoaded', () => {
 // Initialize game
 async function initializeGame() {
     try {
-        // Check API status
+        // Проверяем данные Telegram
+        console.log('Начало инициализации игры...');
+        checkTelegramData();
+        
+        // Проверяем статус API
         updateLoadingStatus('Проверка соединения с сервером...');
+        console.log('Проверка соединения с сервером...');
         const apiStatus = await checkApiStatus();
         if (!apiStatus) {
             throw new Error('Сервер недоступен');
         }
 
-        // Load game state
+        // Загружаем состояние игры
         updateLoadingStatus('Загрузка сохраненного прогресса...');
+        console.log('Загрузка состояния игры...');
         await loadGameState();
 
-        // Initialize UI
+        // Инициализируем UI
         updateLoadingStatus('Загрузка интерфейса...');
+        console.log('Инициализация интерфейса...');
         tg.expand();
         updateUI();
 
-        // Create dev menu
+        // Создаем меню разработчика
         updateLoadingStatus('Инициализация дополнительных функций...');
+        console.log('Создание меню разработчика...');
         createDevMenu();
 
-        // Hide loading screen
+        // Скрываем экран загрузки
+        console.log('Инициализация завершена успешно');
         hideLoadingScreen();
     } catch (error) {
-        console.error('Initialization error:', error);
+        console.error('Ошибка инициализации:', error);
+        console.error('Стек ошибки:', error.stack);
         updateLoadingStatus(`Ошибка: ${error.message}`);
         showNotification(`Ошибка инициализации: ${error.message}`, true);
     }
@@ -141,6 +151,26 @@ console.log('Telegram WebApp data:', {
 
 // API URL - Local server
 const API_URL = 'http://localhost:3001/api';
+
+// Добавляем функцию для проверки Telegram данных
+function checkTelegramData() {
+    console.log('Проверка данных Telegram:', {
+        window: !!window.Telegram,
+        WebApp: !!window.Telegram?.WebApp,
+        initData: tg.initData,
+        initDataUnsafe: tg.initDataUnsafe,
+        user: tg.initDataUnsafe?.user,
+        id: tg.initDataUnsafe?.user?.id
+    });
+    
+    if (!window.Telegram) {
+        throw new Error('Telegram WebApp не инициализирован');
+    }
+    
+    if (!tg.initDataUnsafe?.user?.id) {
+        throw new Error('ID пользователя не найден');
+    }
+}
 
 // Initialize game state with default values
 function initializeGameState(data = null) {
@@ -270,6 +300,8 @@ async function updateUI() {
 async function checkApiStatus() {
     try {
         console.log('Checking API status...');
+        console.log('API URL:', API_URL);
+        
         const response = await fetch(`${API_URL}/players`, {
             method: 'OPTIONS',
             headers: {
@@ -278,6 +310,7 @@ async function checkApiStatus() {
             }
         });
         console.log('API status response:', response.status);
+        console.log('API response headers:', Object.fromEntries(response.headers.entries()));
         
         if (!response.ok) {
             console.error('API response not OK:', response.status, response.statusText);
@@ -288,7 +321,12 @@ async function checkApiStatus() {
     } catch (error) {
         console.error('API status check failed:', error);
         if (error.message.includes('Failed to fetch')) {
-            throw new Error('Не удалось подключиться к серверу. Проверьте подключение к интернету.');
+            console.error('Network error details:', {
+                error: error.message,
+                type: error.name,
+                stack: error.stack
+            });
+            throw new Error('Не удалось подключиться к серверу. Проверьте подключение к интернету и работу сервера.');
         }
         throw error;
     }
@@ -297,30 +335,37 @@ async function checkApiStatus() {
 // Update loadGameState function
 async function loadGameState() {
     try {
-        console.log('Starting loadGameState...');
+        console.log('Начало загрузки состояния игры...');
+        console.log('Данные Telegram:', {
+            initData: tg.initData,
+            user: tg.initDataUnsafe?.user,
+            id: tg.initDataUnsafe?.user?.id
+        });
         
         const telegramId = tg.initDataUnsafe?.user?.id;
         if (!telegramId) {
-            console.error('No telegram ID found');
-            showNotification('Ошибка: ID пользователя не найден', true);
+            console.error('ID пользователя не найден в данных:', tg.initDataUnsafe);
+            showNotification('Ошибка: ID пользователя не найден. Попробуйте перезапустить игру.', true);
             return;
         }
 
-        // Check API status first
+        // Проверяем статус API
         try {
             updateLoadingStatus('Проверка соединения с сервером...');
+            console.log('Проверка соединения с сервером...');
             const apiStatus = await checkApiStatus();
             if (!apiStatus) {
                 throw new Error('Сервер недоступен');
             }
         } catch (error) {
-            console.error('API check failed:', error);
+            console.error('Ошибка проверки API:', error);
             updateLoadingStatus(`Ошибка: ${error.message}`);
             throw error;
         }
 
         showNotification('Загрузка...');
-        console.log('Fetching game state for user:', telegramId);
+        console.log('Запрос состояния игры для пользователя:', telegramId);
+        console.log('URL запроса:', `${API_URL}/players/${telegramId}`);
         
         const response = await fetch(`${API_URL}/players/${telegramId}`, {
             method: 'GET',
@@ -330,34 +375,42 @@ async function loadGameState() {
             }
         });
         
-        console.log('Load response status:', response.status);
-        console.log('Load response headers:', Object.fromEntries(response.headers.entries()));
+        console.log('Статус ответа:', response.status);
+        console.log('Заголовки ответа:', Object.fromEntries(response.headers.entries()));
         
         if (response.ok) {
             const data = await response.json();
-            console.log('Loaded game data:', data);
+            console.log('Полученные данные:', data);
             
-            // Initialize gameState with loaded data
+            if (!data || typeof data !== 'object') {
+                console.error('Некорректные данные получены:', data);
+                throw new Error('Получены некорректные данные с сервера');
+            }
+            
+            // Инициализируем состояние игры с загруженными данными
             gameState = initializeGameState(data);
-            console.log('Game state initialized with loaded data:', gameState);
+            console.log('Состояние игры инициализировано:', gameState);
             
             showNotification('Прогресс загружен');
             updateUI();
         } else if (response.status === 404) {
-            console.log('No saved game found, starting new game');
+            console.log('Сохраненная игра не найдена, начинаем новую игру');
             showNotification('Начинаем новую игру');
             gameState = initializeGameState();
             updateUI();
         } else {
-            const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
-            console.error('Load error response:', errorData);
-            showNotification(`Ошибка загрузки: ${errorData.error || response.statusText}`, true);
-            throw new Error(`Failed to load game state: ${errorData.error || response.statusText}`);
+            const errorData = await response.json().catch(() => ({ error: 'Неизвестная ошибка' }));
+            console.error('Ошибка загрузки:', errorData);
+            console.error('Статус ответа:', response.status);
+            console.error('Текст ответа:', response.statusText);
+            showNotification(`Ошибка загрузки: ${errorData.error || response.statusText}. Код: ${response.status}`, true);
+            throw new Error(`Ошибка загрузки состояния игры: ${errorData.error || response.statusText}`);
         }
     } catch (error) {
-        console.error('Load error:', error);
+        console.error('Ошибка загрузки:', error);
+        console.error('Стек ошибки:', error.stack);
         showNotification(`Ошибка: ${error.message}`, true);
-        // Initialize with default values on error
+        // Инициализируем с значениями по умолчанию при ошибке
         gameState = initializeGameState();
         updateUI();
     }
