@@ -3,6 +3,12 @@ const tg = window.Telegram.WebApp;
 
 // Add loading screen
 function showLoadingScreen() {
+    // Remove existing loading screen if any
+    const existingScreen = document.getElementById('loadingScreen');
+    if (existingScreen) {
+        existingScreen.remove();
+    }
+
     const loadingScreen = document.createElement('div');
     loadingScreen.id = 'loadingScreen';
     loadingScreen.style.position = 'fixed';
@@ -68,21 +74,27 @@ function hideLoadingScreen() {
     }
 }
 
-// Check if the game is opened through Telegram
-if (!tg.initDataUnsafe?.user?.id) {
-    document.body.innerHTML = `
-        <div style="text-align: center; padding: 20px; font-family: Arial, sans-serif;">
-            <h2>Пожалуйста, откройте игру через Telegram бота</h2>
-            <p>Эта игра работает только внутри Telegram.</p>
-            <p>Откройте бота и нажмите кнопку "Играть" или используйте команду /start</p>
-        </div>
-    `;
-    throw new Error('Game must be opened through Telegram bot');
-}
+// Wait for DOM to be ready
+document.addEventListener('DOMContentLoaded', () => {
+    // Show loading screen immediately
+    showLoadingScreen();
+    updateLoadingStatus('Инициализация игры...');
 
-// Show loading screen
-showLoadingScreen();
-updateLoadingStatus('Инициализация игры...');
+    // Check if the game is opened through Telegram
+    if (!tg.initDataUnsafe?.user?.id) {
+        document.body.innerHTML = `
+            <div style="text-align: center; padding: 20px; font-family: Arial, sans-serif;">
+                <h2>Пожалуйста, откройте игру через Telegram бота</h2>
+                <p>Эта игра работает только внутри Telegram.</p>
+                <p>Откройте бота и нажмите кнопку "Играть" или используйте команду /start</p>
+            </div>
+        `;
+        throw new Error('Game must be opened through Telegram bot');
+    }
+
+    // Initialize game
+    initializeGame();
+});
 
 // Initialize game
 async function initializeGame() {
@@ -116,10 +128,9 @@ async function initializeGame() {
     }
 }
 
-// Start initialization
-initializeGame();
-
-tg.expand();
+// Show loading screen
+showLoadingScreen();
+updateLoadingStatus('Инициализация игры...');
 
 // Log Telegram data for debugging
 console.log('Telegram WebApp data:', {
