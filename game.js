@@ -71,10 +71,14 @@ async function saveGameState() {
             return;
         }
 
-        console.log('Saving game state for user:', {
+        console.log('Attempting to save game state:', {
             telegramId,
             username: tg.initDataUnsafe?.user?.username,
-            gameState
+            gameState: {
+                score: gameState.score,
+                multiplier: gameState.multiplier,
+                upgrades: gameState.upgrades
+            }
         });
 
         const response = await fetch(`${API_URL}/players`, {
@@ -85,19 +89,27 @@ async function saveGameState() {
             body: JSON.stringify({
                 telegramId,
                 username: tg.initDataUnsafe?.user?.username,
-                gameState: gameState
+                gameState: {
+                    score: gameState.score,
+                    multiplier: gameState.multiplier,
+                    upgrades: gameState.upgrades
+                }
             })
         });
         
         if (!response.ok) {
             const errorData = await response.json();
+            console.error('Server response error:', {
+                status: response.status,
+                statusText: response.statusText,
+                error: errorData
+            });
             throw new Error(`Failed to save game state: ${errorData.error || response.statusText}`);
         }
         
         const savedData = await response.json();
         console.log('Game state saved successfully:', savedData);
         
-        // Показываем успешное сохранение
         tg.showPopup({
             title: 'Сохранено',
             message: 'Прогресс успешно сохранен!',
@@ -105,10 +117,9 @@ async function saveGameState() {
         });
     } catch (error) {
         console.error('Error saving game state:', error);
-        // Показываем ошибку пользователю
         tg.showPopup({
             title: 'Ошибка сохранения',
-            message: `Не удалось сохранить прогресс: ${error.message}`,
+            message: `Не удалось сохранить прогресс: ${error.message}. Попробуйте позже.`,
             buttons: [{ type: 'ok' }]
         });
     }
@@ -128,14 +139,13 @@ async function loadGameState() {
             return;
         }
 
-        console.log('Loading game state for user:', telegramId);
+        console.log('Attempting to load game state for user:', telegramId);
         const response = await fetch(`${API_URL}/players/${telegramId}`);
         
         if (response.ok) {
             const data = await response.json();
             console.log('Loaded game state:', data);
             
-            // Обновляем состояние игры
             gameState = {
                 score: data.score || 0,
                 multiplier: data.multiplier || 1,
@@ -146,7 +156,6 @@ async function loadGameState() {
             };
             updateUI();
             
-            // Показываем успешную загрузку
             tg.showPopup({
                 title: 'Загружено',
                 message: 'Прогресс успешно загружен!',
@@ -154,7 +163,6 @@ async function loadGameState() {
             });
         } else if (response.status === 404) {
             console.log('No saved game state found, starting new game');
-            // Начинаем новую игру
             gameState = {
                 score: 0,
                 multiplier: 1,
@@ -165,18 +173,22 @@ async function loadGameState() {
             };
             updateUI();
         } else {
-            throw new Error(`Failed to load game state: ${response.statusText}`);
+            const errorData = await response.json();
+            console.error('Server response error:', {
+                status: response.status,
+                statusText: response.statusText,
+                error: errorData
+            });
+            throw new Error(`Failed to load game state: ${errorData.error || response.statusText}`);
         }
     } catch (error) {
         console.error('Error loading game state:', error);
-        // Показываем ошибку пользователю
         tg.showPopup({
             title: 'Ошибка загрузки',
             message: `Не удалось загрузить сохраненный прогресс: ${error.message}. Начинаем новую игру.`,
             buttons: [{ type: 'ok' }]
         });
         
-        // Начинаем новую игру при ошибке
         gameState = {
             score: 0,
             multiplier: 1,
