@@ -299,32 +299,35 @@ async function updateUI() {
 // Add function to check API status
 async function checkApiStatus() {
     try {
-        console.log('Checking API status...');
-        console.log('API URL:', API_URL);
+        console.log('Проверка статуса API...');
+        console.log('URL API:', API_URL);
         
         const response = await fetch(`${API_URL}/players`, {
             method: 'OPTIONS',
             headers: {
                 'Content-Type': 'application/json',
-                'Accept': 'application/json'
+                'Accept': 'application/json',
+                'Origin': window.location.origin
             }
         });
-        console.log('API status response:', response.status);
-        console.log('API response headers:', Object.fromEntries(response.headers.entries()));
+        
+        console.log('Статус ответа API:', response.status);
+        console.log('Заголовки ответа:', Object.fromEntries(response.headers.entries()));
         
         if (!response.ok) {
-            console.error('API response not OK:', response.status, response.statusText);
+            console.error('Ответ API не OK:', response.status, response.statusText);
             throw new Error(`Сервер вернул ошибку: ${response.status} ${response.statusText}`);
         }
         
         return true;
     } catch (error) {
-        console.error('API status check failed:', error);
+        console.error('Ошибка проверки API:', error);
         if (error.message.includes('Failed to fetch')) {
-            console.error('Network error details:', {
+            console.error('Детали сетевой ошибки:', {
                 error: error.message,
                 type: error.name,
-                stack: error.stack
+                stack: error.stack,
+                url: API_URL
             });
             throw new Error('Не удалось подключиться к серверу. Проверьте подключение к интернету и работу сервера.');
         }
