@@ -108,6 +108,17 @@ function showNotification(message, isError = false) {
     setTimeout(() => notification.remove(), 3000);
 }
 
+// Add debounce function to prevent multiple saves
+let saveTimeout = null;
+async function debouncedSave() {
+    if (saveTimeout) {
+        clearTimeout(saveTimeout);
+    }
+    saveTimeout = setTimeout(async () => {
+        await saveGameState();
+    }, 1000);
+}
+
 // Update UI and save state
 async function updateUI() {
     console.log('Updating UI, current gameState:', gameState);
@@ -128,8 +139,8 @@ async function updateUI() {
     upgrade1Button.disabled = gameState.score < gameState.upgrades.autoClicker.cost;
     upgrade2Button.disabled = gameState.score < gameState.upgrades.clickPower.cost;
 
-    // Save state after any UI update
-    await saveGameState();
+    // Save state after any UI update with debounce
+    await debouncedSave();
 }
 
 // Update saveGameState function
@@ -325,131 +336,48 @@ let devMenuOpen = false;
 let lastClickTime = 0;
 
 function showClickCount() {
+    // Remove existing notification if any
+    const existingNotification = document.getElementById('clickCountNotification');
+    if (existingNotification) {
+        existingNotification.remove();
+    }
+
     const notification = document.createElement('div');
+    notification.id = 'clickCountNotification';
     notification.style.position = 'fixed';
     notification.style.top = '50%';
     notification.style.left = '50%';
     notification.style.transform = 'translate(-50%, -50%)';
-    notification.style.padding = '10px 20px';
+    notification.style.padding = '15px 30px';
     notification.style.backgroundColor = 'var(--tg-theme-bg-color, #2c3e50)';
     notification.style.color = 'var(--tg-theme-text-color, white)';
-    notification.style.borderRadius = '5px';
+    notification.style.borderRadius = '10px';
     notification.style.zIndex = '1002';
+    notification.style.fontSize = '24px';
+    notification.style.fontWeight = 'bold';
+    notification.style.boxShadow = '0 0 20px rgba(0, 0, 0, 0.3)';
     notification.textContent = `${14 - settingsClickCount} кликов осталось`;
     document.body.appendChild(notification);
-    setTimeout(() => notification.remove(), 1000);
-}
 
-function createDevMenu() {
-    // Remove existing dev menu if it exists
-    const existingMenu = document.getElementById('devMenu');
-    if (existingMenu) {
-        existingMenu.remove();
-    }
-
-    const devMenu = document.createElement('div');
-    devMenu.style.position = 'fixed';
-    devMenu.style.top = '50%';
-    devMenu.style.left = '50%';
-    devMenu.style.transform = 'translate(-50%, -50%)';
-    devMenu.style.backgroundColor = 'var(--tg-theme-bg-color, #2c3e50)';
-    devMenu.style.padding = '20px';
-    devMenu.style.borderRadius = '10px';
-    devMenu.style.zIndex = '1001';
-    devMenu.style.display = 'none';
-    devMenu.style.boxShadow = '0 0 20px rgba(0, 0, 0, 0.3)';
-    devMenu.style.minWidth = '300px';
-    devMenu.id = 'devMenu';
-
-    const title = document.createElement('h2');
-    title.textContent = 'Меню разработчика';
-    title.style.color = 'var(--tg-theme-text-color, white)';
-    title.style.marginBottom = '20px';
-    title.style.textAlign = 'center';
-    devMenu.appendChild(title);
-
-    const consoleButton = document.createElement('button');
-    consoleButton.textContent = 'Открыть консоль';
-    consoleButton.style.padding = '10px 20px';
-    consoleButton.style.margin = '5px';
-    consoleButton.style.backgroundColor = 'var(--tg-theme-button-color, #3498db)';
-    consoleButton.style.color = 'var(--tg-theme-button-text-color, white)';
-    consoleButton.style.border = 'none';
-    consoleButton.style.borderRadius = '5px';
-    consoleButton.style.cursor = 'pointer';
-    consoleButton.style.width = '100%';
-    consoleButton.onclick = () => {
-        // Remove existing console if it exists
-        const existingConsole = document.getElementById('devConsole');
-        if (existingConsole) {
-            existingConsole.remove();
+    // Add animation
+    notification.style.animation = 'fadeInOut 1s ease-in-out';
+    
+    // Add animation style
+    const style = document.createElement('style');
+    style.textContent = `
+        @keyframes fadeInOut {
+            0% { opacity: 0; transform: translate(-50%, -50%) scale(0.8); }
+            20% { opacity: 1; transform: translate(-50%, -50%) scale(1.1); }
+            80% { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+            100% { opacity: 0; transform: translate(-50%, -50%) scale(0.8); }
         }
+    `;
+    document.head.appendChild(style);
 
-        const consoleDiv = document.createElement('div');
-        consoleDiv.style.position = 'fixed';
-        consoleDiv.style.bottom = '60px';
-        consoleDiv.style.left = '0';
-        consoleDiv.style.right = '0';
-        consoleDiv.style.height = '200px';
-        consoleDiv.style.backgroundColor = 'var(--tg-theme-bg-color, #1e1e1e)';
-        consoleDiv.style.color = 'var(--tg-theme-text-color, #fff)';
-        consoleDiv.style.padding = '10px';
-        consoleDiv.style.fontFamily = 'monospace';
-        consoleDiv.style.overflowY = 'auto';
-        consoleDiv.style.zIndex = '1000';
-        consoleDiv.id = 'devConsole';
-        document.body.appendChild(consoleDiv);
-
-        // Override console.log
-        const originalConsoleLog = console.log;
-        console.log = function(...args) {
-            originalConsoleLog.apply(console, args);
-            const message = args.map(arg => 
-                typeof arg === 'object' ? JSON.stringify(arg, null, 2) : arg
-            ).join(' ');
-            const consoleDiv = document.getElementById('devConsole');
-            if (consoleDiv) {
-                const line = document.createElement('div');
-                line.textContent = message;
-                consoleDiv.appendChild(line);
-                consoleDiv.scrollTop = consoleDiv.scrollHeight;
-            }
-        };
-
-        // Log initial state
-        console.log('Developer console opened');
-        console.log('Current game state:', gameState);
-        console.log('Telegram WebApp data:', {
-            initData: tg.initData,
-            initDataUnsafe: tg.initDataUnsafe,
-            user: tg.initDataUnsafe?.user
-        });
-    };
-    devMenu.appendChild(consoleButton);
-
-    const closeButton = document.createElement('button');
-    closeButton.textContent = 'Закрыть';
-    closeButton.style.padding = '10px 20px';
-    closeButton.style.margin = '5px';
-    closeButton.style.backgroundColor = 'var(--tg-theme-button-color, #e74c3c)';
-    closeButton.style.color = 'var(--tg-theme-button-text-color, white)';
-    closeButton.style.border = 'none';
-    closeButton.style.borderRadius = '5px';
-    closeButton.style.cursor = 'pointer';
-    closeButton.style.width = '100%';
-    closeButton.onclick = () => {
-        devMenu.style.display = 'none';
-        devMenuOpen = false;
-        // Remove console when closing menu
-        const consoleDiv = document.getElementById('devConsole');
-        if (consoleDiv) {
-            consoleDiv.remove();
-        }
-    };
-    devMenu.appendChild(closeButton);
-
-    document.body.appendChild(devMenu);
-    console.log('Developer menu created');
+    setTimeout(() => {
+        notification.remove();
+        style.remove();
+    }, 1000);
 }
 
 // Create dev menu when the page loads
@@ -469,6 +397,12 @@ if (settingsButton) {
         console.log('Settings button clicked, count:', settingsClickCount + 1);
         settingsClickCount++;
         
+        // Add click animation to button
+        settingsButton.style.transform = 'scale(0.9)';
+        setTimeout(() => {
+            settingsButton.style.transform = 'scale(1)';
+        }, 100);
+        
         // Show click count notification
         showClickCount();
 
@@ -479,6 +413,18 @@ if (settingsButton) {
                 devMenu.style.display = 'block';
                 devMenuOpen = true;
                 settingsClickCount = 0;
+                
+                // Add opening animation
+                devMenu.style.animation = 'menuOpen 0.3s ease-out';
+                const style = document.createElement('style');
+                style.textContent = `
+                    @keyframes menuOpen {
+                        0% { opacity: 0; transform: translate(-50%, -50%) scale(0.8); }
+                        100% { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+                    }
+                `;
+                document.head.appendChild(style);
+                setTimeout(() => style.remove(), 300);
             } else {
                 console.error('Developer menu not found');
             }
