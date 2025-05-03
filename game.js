@@ -63,6 +63,11 @@ async function saveGameState() {
         const telegramId = tg.initDataUnsafe?.user?.id;
         if (!telegramId) {
             console.error('No Telegram user ID available');
+            tg.showPopup({
+                title: 'Ошибка',
+                message: 'Не удалось получить ID пользователя Telegram. Пожалуйста, откройте игру через бота.',
+                buttons: [{ type: 'ok' }]
+            });
             return;
         }
 
@@ -91,12 +96,19 @@ async function saveGameState() {
         
         const savedData = await response.json();
         console.log('Game state saved successfully:', savedData);
+        
+        // Показываем успешное сохранение
+        tg.showPopup({
+            title: 'Сохранено',
+            message: 'Прогресс успешно сохранен!',
+            buttons: [{ type: 'ok' }]
+        });
     } catch (error) {
         console.error('Error saving game state:', error);
         // Показываем ошибку пользователю
         tg.showPopup({
             title: 'Ошибка сохранения',
-            message: 'Не удалось сохранить прогресс. Попробуйте позже.',
+            message: `Не удалось сохранить прогресс: ${error.message}`,
             buttons: [{ type: 'ok' }]
         });
     }
@@ -108,6 +120,11 @@ async function loadGameState() {
         const telegramId = tg.initDataUnsafe?.user?.id;
         if (!telegramId) {
             console.error('No Telegram user ID available');
+            tg.showPopup({
+                title: 'Ошибка',
+                message: 'Не удалось получить ID пользователя Telegram. Пожалуйста, откройте игру через бота.',
+                buttons: [{ type: 'ok' }]
+            });
             return;
         }
 
@@ -128,6 +145,13 @@ async function loadGameState() {
                 }
             };
             updateUI();
+            
+            // Показываем успешную загрузку
+            tg.showPopup({
+                title: 'Загружено',
+                message: 'Прогресс успешно загружен!',
+                buttons: [{ type: 'ok' }]
+            });
         } else if (response.status === 404) {
             console.log('No saved game state found, starting new game');
             // Начинаем новую игру
@@ -148,7 +172,7 @@ async function loadGameState() {
         // Показываем ошибку пользователю
         tg.showPopup({
             title: 'Ошибка загрузки',
-            message: 'Не удалось загрузить сохраненный прогресс. Начинаем новую игру.',
+            message: `Не удалось загрузить сохраненный прогресс: ${error.message}. Начинаем новую игру.`,
             buttons: [{ type: 'ok' }]
         });
         

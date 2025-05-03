@@ -15,10 +15,14 @@ const STORAGE_FILE = path.join(__dirname, 'game_data.json');
 // Load data from file
 async function loadData() {
     try {
+        console.log('Loading data from file:', STORAGE_FILE);
         const data = await fs.readFile(STORAGE_FILE, 'utf8');
+        console.log('Loaded data:', data);
         return JSON.parse(data);
     } catch (error) {
+        console.error('Error loading data:', error);
         if (error.code === 'ENOENT') {
+            console.log('File does not exist, creating new storage');
             // File doesn't exist, create empty storage
             await fs.writeFile(STORAGE_FILE, JSON.stringify({}));
             return {};
@@ -29,13 +33,21 @@ async function loadData() {
 
 // Save data to file
 async function saveData(data) {
-    await fs.writeFile(STORAGE_FILE, JSON.stringify(data, null, 2));
+    try {
+        console.log('Saving data to file:', STORAGE_FILE);
+        console.log('Data to save:', data);
+        await fs.writeFile(STORAGE_FILE, JSON.stringify(data, null, 2));
+        console.log('Data saved successfully');
+    } catch (error) {
+        console.error('Error saving data:', error);
+        throw error;
+    }
 }
 
 // API Routes
 app.post('/api/players', async (req, res) => {
     try {
-        console.log('Received save request:', req.body);
+        console.log('Received save request body:', req.body);
         const { telegramId, username, gameState } = req.body;
         
         if (!telegramId || !gameState) {
@@ -55,7 +67,11 @@ app.post('/api/players', async (req, res) => {
             lastUpdated: new Date()
         };
         
+        console.log('Prepared player data:', player);
+        
         const data = await loadData();
+        console.log('Current storage data:', data);
+        
         data[telegramId] = player;
         await saveData(data);
         
@@ -71,6 +87,8 @@ app.get('/api/players/:telegramId', async (req, res) => {
     try {
         console.log('Received load request for player:', req.params.telegramId);
         const data = await loadData();
+        console.log('Current storage data:', data);
+        
         const player = data[req.params.telegramId];
         
         if (!player) {
@@ -89,10 +107,14 @@ app.get('/api/players/:telegramId', async (req, res) => {
 app.get('/api/leaderboard', async (req, res) => {
     try {
         const data = await loadData();
+        console.log('Current storage data for leaderboard:', data);
+        
         const leaderboard = Object.values(data)
             .sort((a, b) => b.score - a.score)
             .slice(0, 10)
             .map(({ username, score }) => ({ username, score }));
+            
+        console.log('Returning leaderboard:', leaderboard);
         res.json(leaderboard);
     } catch (error) {
         console.error('Error getting leaderboard:', error);
