@@ -36,9 +36,9 @@ async function loadData() {
         console.error('Error loading data:', error);
         if (error.code === 'ENOENT') {
             console.log('File does not exist, creating new storage');
-            // File doesn't exist, create empty storage
-            await fs.writeFile(STORAGE_FILE, JSON.stringify({}));
-            return {};
+            const emptyData = {};
+            await fs.writeFile(STORAGE_FILE, JSON.stringify(emptyData, null, 2));
+            return emptyData;
         }
         throw error;
     }
@@ -49,7 +49,7 @@ async function saveData(data) {
     try {
         await ensureDataDir();
         console.log('Saving data to file:', STORAGE_FILE);
-        console.log('Data to save:', data);
+        console.log('Data to save:', JSON.stringify(data, null, 2));
         await fs.writeFile(STORAGE_FILE, JSON.stringify(data, null, 2));
         console.log('Data saved successfully');
     } catch (error) {
@@ -61,12 +61,17 @@ async function saveData(data) {
 // API Routes
 app.post('/api/players', async (req, res) => {
     try {
-        console.log('Received save request body:', req.body);
+        console.log('Received save request body:', JSON.stringify(req.body, null, 2));
         const { telegramId, username, gameState } = req.body;
         
-        if (!telegramId || !gameState) {
-            console.error('Missing required fields:', { telegramId, gameState });
-            return res.status(400).json({ error: 'Missing required fields' });
+        if (!telegramId) {
+            console.error('Missing telegramId in request');
+            return res.status(400).json({ error: 'Missing telegramId' });
+        }
+
+        if (!gameState) {
+            console.error('Missing gameState in request');
+            return res.status(400).json({ error: 'Missing gameState' });
         }
 
         const player = {
@@ -78,18 +83,18 @@ app.post('/api/players', async (req, res) => {
                 autoClicker: { level: 0, cost: 10, baseCost: 10, clicksPerSecond: 0 },
                 clickPower: { level: 0, cost: 50, baseCost: 50, power: 1 }
             },
-            lastUpdated: new Date()
+            lastUpdated: new Date().toISOString()
         };
         
-        console.log('Prepared player data:', player);
+        console.log('Prepared player data:', JSON.stringify(player, null, 2));
         
         const data = await loadData();
-        console.log('Current storage data:', data);
+        console.log('Current storage data:', JSON.stringify(data, null, 2));
         
         data[telegramId] = player;
         await saveData(data);
         
-        console.log('Saved player data:', player);
+        console.log('Saved player data:', JSON.stringify(player, null, 2));
         res.json(player);
     } catch (error) {
         console.error('Error saving player:', error);
@@ -101,7 +106,7 @@ app.get('/api/players/:telegramId', async (req, res) => {
     try {
         console.log('Received load request for player:', req.params.telegramId);
         const data = await loadData();
-        console.log('Current storage data:', data);
+        console.log('Current storage data:', JSON.stringify(data, null, 2));
         
         const player = data[req.params.telegramId];
         
@@ -110,7 +115,7 @@ app.get('/api/players/:telegramId', async (req, res) => {
             return res.status(404).json({ error: 'Player not found' });
         }
         
-        console.log('Returning player data:', player);
+        console.log('Returning player data:', JSON.stringify(player, null, 2));
         res.json(player);
     } catch (error) {
         console.error('Error loading player:', error);
@@ -121,14 +126,14 @@ app.get('/api/players/:telegramId', async (req, res) => {
 app.get('/api/leaderboard', async (req, res) => {
     try {
         const data = await loadData();
-        console.log('Current storage data for leaderboard:', data);
+        console.log('Current storage data for leaderboard:', JSON.stringify(data, null, 2));
         
         const leaderboard = Object.values(data)
             .sort((a, b) => b.score - a.score)
             .slice(0, 10)
             .map(({ username, score }) => ({ username, score }));
             
-        console.log('Returning leaderboard:', leaderboard);
+        console.log('Returning leaderboard:', JSON.stringify(leaderboard, null, 2));
         res.json(leaderboard);
     } catch (error) {
         console.error('Error getting leaderboard:', error);
@@ -139,4 +144,6 @@ app.get('/api/leaderboard', async (req, res) => {
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
     console.log(`Server is running on port ${PORT}`);
+    console.log('Data directory:', DATA_DIR);
+    console.log('Storage file:', STORAGE_FILE);
 }); 

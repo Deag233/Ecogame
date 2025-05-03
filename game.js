@@ -74,30 +74,37 @@ async function saveGameState() {
             return;
         }
 
-        console.log('Attempting to save game state:', {
+        const saveData = {
             telegramId,
             username: tg.initDataUnsafe?.user?.username,
             gameState: {
                 score: gameState.score,
                 multiplier: gameState.multiplier,
-                upgrades: gameState.upgrades
+                upgrades: {
+                    autoClicker: {
+                        level: gameState.upgrades.autoClicker.level,
+                        cost: gameState.upgrades.autoClicker.cost,
+                        baseCost: gameState.upgrades.autoClicker.baseCost,
+                        clicksPerSecond: gameState.upgrades.autoClicker.clicksPerSecond
+                    },
+                    clickPower: {
+                        level: gameState.upgrades.clickPower.level,
+                        cost: gameState.upgrades.clickPower.cost,
+                        baseCost: gameState.upgrades.clickPower.baseCost,
+                        power: gameState.upgrades.clickPower.power
+                    }
+                }
             }
-        });
+        };
+
+        console.log('Attempting to save game state:', JSON.stringify(saveData, null, 2));
 
         const response = await fetch(`${API_URL}/players`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
             },
-            body: JSON.stringify({
-                telegramId,
-                username: tg.initDataUnsafe?.user?.username,
-                gameState: {
-                    score: gameState.score,
-                    multiplier: gameState.multiplier,
-                    upgrades: gameState.upgrades
-                }
-            })
+            body: JSON.stringify(saveData)
         });
         
         if (!response.ok) {
@@ -111,7 +118,7 @@ async function saveGameState() {
         }
         
         const savedData = await response.json();
-        console.log('Game state saved successfully:', savedData);
+        console.log('Game state saved successfully:', JSON.stringify(savedData, null, 2));
         
         tg.showPopup({
             title: 'Сохранено',
