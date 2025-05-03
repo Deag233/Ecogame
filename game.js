@@ -25,7 +25,7 @@ console.log('Telegram WebApp data:', {
 // API URL - будет заменен на реальный URL после деплоя
 const API_URL = 'https://econoch.onrender.com/api';
 
-// Game state
+// Initialize game state with default values
 let gameState = {
     score: 0,
     multiplier: 1,
@@ -75,6 +75,11 @@ function showNotification(message, isError = false) {
 
 // Update UI and save state
 async function updateUI() {
+    if (!gameState) {
+        console.error('gameState is not initialized');
+        return;
+    }
+
     scoreElement.textContent = Math.floor(gameState.score);
     multiplierElement.textContent = gameState.multiplier;
     upgrade1CostElement.textContent = Math.floor(gameState.upgrades.autoClicker.cost);
@@ -99,27 +104,36 @@ async function saveGameState() {
             return;
         }
 
+        // Validate gameState
+        if (!gameState || typeof gameState !== 'object') {
+            console.error('Invalid gameState:', gameState);
+            showNotification('Ошибка: Некорректное состояние игры', true);
+            return;
+        }
+
         // Create a deep copy of the game state to ensure all values are included
         const saveData = {
             telegramId,
-            username: tg.initDataUnsafe?.user?.username,
-            score: Number(gameState.score),
-            multiplier: Number(gameState.multiplier),
+            username: tg.initDataUnsafe?.user?.username || 'unknown',
+            score: Number(gameState.score) || 0,
+            multiplier: Number(gameState.multiplier) || 1,
             upgrades: {
                 autoClicker: {
-                    level: Number(gameState.upgrades.autoClicker.level),
-                    cost: Number(gameState.upgrades.autoClicker.cost),
-                    baseCost: Number(gameState.upgrades.autoClicker.baseCost),
-                    clicksPerSecond: Number(gameState.upgrades.autoClicker.clicksPerSecond)
+                    level: Number(gameState.upgrades?.autoClicker?.level) || 0,
+                    cost: Number(gameState.upgrades?.autoClicker?.cost) || 10,
+                    baseCost: Number(gameState.upgrades?.autoClicker?.baseCost) || 10,
+                    clicksPerSecond: Number(gameState.upgrades?.autoClicker?.clicksPerSecond) || 0
                 },
                 clickPower: {
-                    level: Number(gameState.upgrades.clickPower.level),
-                    cost: Number(gameState.upgrades.clickPower.cost),
-                    baseCost: Number(gameState.upgrades.clickPower.baseCost),
-                    power: Number(gameState.upgrades.clickPower.power)
+                    level: Number(gameState.upgrades?.clickPower?.level) || 0,
+                    cost: Number(gameState.upgrades?.clickPower?.cost) || 50,
+                    baseCost: Number(gameState.upgrades?.clickPower?.baseCost) || 50,
+                    power: Number(gameState.upgrades?.clickPower?.power) || 1
                 }
             }
         };
+
+        console.log('Preparing to save game state:', saveData);
 
         showNotification('Сохранение...');
         const response = await fetch(`${API_URL}/players`, {
@@ -132,17 +146,17 @@ async function saveGameState() {
         
         if (!response.ok) {
             const errorData = await response.json();
+            console.error('Save error response:', errorData);
             showNotification(`Ошибка сохранения: ${errorData.error || response.statusText}`, true);
             throw new Error(`Failed to save game state: ${errorData.error || response.statusText}`);
         }
         
         const savedData = await response.json();
+        console.log('Game state saved successfully:', savedData);
         showNotification('Прогресс сохранен');
 
-        console.log('=== SAVE REQUEST START ===');
-        console.log('Sending save request with data:', JSON.stringify(saveData, null, 2));
-        console.log('API URL:', API_URL);
     } catch (error) {
+        console.error('Save error:', error);
         showNotification(`Ошибка: ${error.message}`, true);
     }
 }
@@ -161,20 +175,48 @@ async function loadGameState() {
         
         if (response.ok) {
             const data = await response.json();
+            console.log('Loaded game data:', data);
+            
+            // Initialize gameState with default values
             gameState = {
-                score: data.score || 0,
-                multiplier: data.multiplier || 1,
-                upgrades: data.upgrades || {
+                score: 0,
+                multiplier: 1,
+                upgrades: {
                     autoClicker: { level: 0, cost: 10, baseCost: 10, clicksPerSecond: 0 },
                     clickPower: { level: 0, cost: 50, baseCost: 50, power: 1 }
                 }
             };
+
+            // Update with loaded data if available
+            if (data) {
+                gameState.score = Number(data.score) || 0;
+                gameState.multiplier = Number(data.multiplier) || 1;
+                
+                if (data.upgrades) {
+                    if (data.upgrades.autoClicker) {
+                        gameState.upgrades.autoClicker = {
+                            level: Number(data.upgrades.autoClicker.level) || 0,
+                            cost: Number(data.upgrades.autoClicker.cost) || 10,
+                            baseCost: Number(data.upgrades.autoClicker.baseCost) || 10,
+                            clicksPerSecond: Number(data.upgrades.autoClicker.clicksPerSecond) || 0
+                        };
+                    }
+                    if (data.upgrades.clickPower) {
+                        gameState.upgrades.clickPower = {
+                            level: Number(data.upgrades.clickPower.level) || 0,
+                            cost: Number(data.upgrades.clickPower.cost) || 50,
+                            baseCost: Number(data.upgrades.clickPower.baseCost) || 50,
+                            power: Number(data.upgrades.clickPower.power) || 1
+                        };
+                    }
+                }
+            }
+
+            console.log('Initialized game state:', gameState);
             showNotification('Прогресс загружен');
             updateUI();
-
-            console.log('=== LOAD REQUEST START ===');
-            console.log('Loading game state for user:', telegramId);
         } else if (response.status === 404) {
+            console.log('No saved game found, starting new game');
             showNotification('Начинаем новую игру');
             gameState = {
                 score: 0,
@@ -187,11 +229,14 @@ async function loadGameState() {
             updateUI();
         } else {
             const errorData = await response.json();
+            console.error('Load error response:', errorData);
             showNotification(`Ошибка загрузки: ${errorData.error || response.statusText}`, true);
             throw new Error(`Failed to load game state: ${errorData.error || response.statusText}`);
         }
     } catch (error) {
+        console.error('Load error:', error);
         showNotification(`Ошибка: ${error.message}`, true);
+        // Initialize with default values on error
         gameState = {
             score: 0,
             multiplier: 1,
@@ -206,12 +251,20 @@ async function loadGameState() {
 
 // Click handler
 async function handleClick() {
+    if (!gameState) {
+        console.error('gameState is not initialized');
+        return;
+    }
     gameState.score += gameState.multiplier * gameState.upgrades.clickPower.power;
     await updateUI();
 }
 
 // Upgrade handlers
 async function buyAutoClicker() {
+    if (!gameState) {
+        console.error('gameState is not initialized');
+        return;
+    }
     if (gameState.score >= gameState.upgrades.autoClicker.cost) {
         gameState.score -= gameState.upgrades.autoClicker.cost;
         gameState.upgrades.autoClicker.level++;
@@ -222,6 +275,10 @@ async function buyAutoClicker() {
 }
 
 async function buyClickPower() {
+    if (!gameState) {
+        console.error('gameState is not initialized');
+        return;
+    }
     if (gameState.score >= gameState.upgrades.clickPower.cost) {
         gameState.score -= gameState.upgrades.clickPower.cost;
         gameState.upgrades.clickPower.level++;
@@ -233,6 +290,10 @@ async function buyClickPower() {
 
 // Auto clicker
 async function autoClick() {
+    if (!gameState) {
+        console.error('gameState is not initialized');
+        return;
+    }
     gameState.score += gameState.upgrades.autoClicker.clicksPerSecond * gameState.upgrades.clickPower.power;
     await updateUI();
 }
@@ -251,7 +312,7 @@ loadGameState();
 // Initial UI update
 updateUI();
 
-// Replace the settings button creation code with this:
+// Settings button code
 const settingsButton = document.getElementById('settingsButton');
 let settingsClickCount = 0;
 let devMenuOpen = false;
@@ -262,40 +323,44 @@ function createDevMenu() {
     devMenu.style.top = '50%';
     devMenu.style.left = '50%';
     devMenu.style.transform = 'translate(-50%, -50%)';
-    devMenu.style.backgroundColor = '#2c3e50';
+    devMenu.style.backgroundColor = 'var(--tg-theme-bg-color, #2c3e50)';
     devMenu.style.padding = '20px';
     devMenu.style.borderRadius = '10px';
-    devMenu.style.zIndex = '1000';
+    devMenu.style.zIndex = '1001';
     devMenu.style.display = 'none';
+    devMenu.style.boxShadow = '0 0 20px rgba(0, 0, 0, 0.3)';
     devMenu.id = 'devMenu';
 
     const title = document.createElement('h2');
     title.textContent = 'Меню разработчика';
-    title.style.color = 'white';
+    title.style.color = 'var(--tg-theme-text-color, white)';
     title.style.marginBottom = '20px';
+    title.style.textAlign = 'center';
     devMenu.appendChild(title);
 
     const consoleButton = document.createElement('button');
     consoleButton.textContent = 'Открыть консоль';
     consoleButton.style.padding = '10px 20px';
     consoleButton.style.margin = '5px';
-    consoleButton.style.backgroundColor = '#3498db';
-    consoleButton.style.color = 'white';
+    consoleButton.style.backgroundColor = 'var(--tg-theme-button-color, #3498db)';
+    consoleButton.style.color = 'var(--tg-theme-button-text-color, white)';
     consoleButton.style.border = 'none';
     consoleButton.style.borderRadius = '5px';
     consoleButton.style.cursor = 'pointer';
+    consoleButton.style.width = '100%';
     consoleButton.onclick = () => {
         const consoleDiv = document.createElement('div');
         consoleDiv.style.position = 'fixed';
-        consoleDiv.style.bottom = '0';
+        consoleDiv.style.bottom = '60px';
         consoleDiv.style.left = '0';
         consoleDiv.style.right = '0';
         consoleDiv.style.height = '200px';
-        consoleDiv.style.backgroundColor = '#1e1e1e';
-        consoleDiv.style.color = '#fff';
+        consoleDiv.style.backgroundColor = 'var(--tg-theme-bg-color, #1e1e1e)';
+        consoleDiv.style.color = 'var(--tg-theme-text-color, #fff)';
         consoleDiv.style.padding = '10px';
         consoleDiv.style.fontFamily = 'monospace';
         consoleDiv.style.overflowY = 'auto';
+        consoleDiv.style.zIndex = '1000';
         consoleDiv.id = 'devConsole';
         document.body.appendChild(consoleDiv);
 
@@ -321,11 +386,12 @@ function createDevMenu() {
     closeButton.textContent = 'Закрыть';
     closeButton.style.padding = '10px 20px';
     closeButton.style.margin = '5px';
-    closeButton.style.backgroundColor = '#e74c3c';
-    closeButton.style.color = 'white';
+    closeButton.style.backgroundColor = 'var(--tg-theme-button-color, #e74c3c)';
+    closeButton.style.color = 'var(--tg-theme-button-text-color, white)';
     closeButton.style.border = 'none';
     closeButton.style.borderRadius = '5px';
     closeButton.style.cursor = 'pointer';
+    closeButton.style.width = '100%';
     closeButton.onclick = () => {
         devMenu.style.display = 'none';
         devMenuOpen = false;
