@@ -53,6 +53,7 @@ function updateUI() {
 // Save game state to server
 async function saveGameState() {
     try {
+        console.log('Saving game state:', gameState);
         const response = await fetch(`${API_URL}/players`, {
             method: 'POST',
             headers: {
@@ -66,29 +67,83 @@ async function saveGameState() {
         });
         
         if (!response.ok) {
-            throw new Error('Failed to save game state');
+            const errorData = await response.json();
+            throw new Error(`Failed to save game state: ${errorData.error || response.statusText}`);
         }
+        
+        const savedData = await response.json();
+        console.log('Game state saved successfully:', savedData);
     } catch (error) {
         console.error('Error saving game state:', error);
+        // Показываем ошибку пользователю
+        tg.showPopup({
+            title: 'Ошибка сохранения',
+            message: 'Не удалось сохранить прогресс. Попробуйте позже.',
+            buttons: [{ type: 'ok' }]
+        });
     }
 }
 
 // Load game state from server
 async function loadGameState() {
     try {
-        const response = await fetch(`${API_URL}/players/${tg.initDataUnsafe?.user?.id}`);
+        const telegramId = tg.initDataUnsafe?.user?.id;
+        if (!telegramId) {
+            console.error('No Telegram user ID available');
+            return;
+        }
+
+        console.log('Loading game state for user:', telegramId);
+        const response = await fetch(`${API_URL}/players/${telegramId}`);
         
         if (response.ok) {
             const data = await response.json();
+            console.log('Loaded game state:', data);
+            
+            // Обновляем состояние игры
             gameState = {
-                score: data.score,
-                multiplier: data.multiplier,
-                upgrades: data.upgrades
+                score: data.score || 0,
+                multiplier: data.multiplier || 1,
+                upgrades: data.upgrades || {
+                    autoClicker: { level: 0, cost: 10, baseCost: 10, clicksPerSecond: 0 },
+                    clickPower: { level: 0, cost: 50, baseCost: 50, power: 1 }
+                }
             };
             updateUI();
+        } else if (response.status === 404) {
+            console.log('No saved game state found, starting new game');
+            // Начинаем новую игру
+            gameState = {
+                score: 0,
+                multiplier: 1,
+                upgrades: {
+                    autoClicker: { level: 0, cost: 10, baseCost: 10, clicksPerSecond: 0 },
+                    clickPower: { level: 0, cost: 50, baseCost: 50, power: 1 }
+                }
+            };
+            updateUI();
+        } else {
+            throw new Error(`Failed to load game state: ${response.statusText}`);
         }
     } catch (error) {
         console.error('Error loading game state:', error);
+        // Показываем ошибку пользователю
+        tg.showPopup({
+            title: 'Ошибка загрузки',
+            message: 'Не удалось загрузить сохраненный прогресс. Начинаем новую игру.',
+            buttons: [{ type: 'ok' }]
+        });
+        
+        // Начинаем новую игру при ошибке
+        gameState = {
+            score: 0,
+            multiplier: 1,
+            upgrades: {
+                autoClicker: { level: 0, cost: 10, baseCost: 10, clicksPerSecond: 0 },
+                clickPower: { level: 0, cost: 50, baseCost: 50, power: 1 }
+            }
+        };
+        updateUI();
     }
 }
 
