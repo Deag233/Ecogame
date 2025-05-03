@@ -194,6 +194,7 @@ async function loadGameState() {
             method: 'GET',
             headers: {
                 'Content-Type': 'application/json',
+                'Accept': 'application/json'
             }
         });
         
@@ -256,9 +257,9 @@ async function saveGameState() {
             gameState = initializeGameState();
         }
 
-        // Create a deep copy of the game state
+        // Create a deep copy of the game state, excluding MongoDB fields
         const saveData = {
-            telegramId,
+            telegramId: String(telegramId), // Ensure telegramId is a string
             username: tg.initDataUnsafe?.user?.username || 'unknown',
             score: Number(gameState.score) || 0,
             multiplier: Number(gameState.multiplier) || 1,
@@ -284,6 +285,7 @@ async function saveGameState() {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
+                'Accept': 'application/json'
             },
             body: JSON.stringify(saveData)
         });
@@ -300,6 +302,14 @@ async function saveGameState() {
         
         const savedData = await response.json();
         console.log('Game state saved successfully:', savedData);
+        
+        // Update local gameState with saved data
+        gameState = {
+            ...gameState,
+            _id: savedData._id,
+            lastUpdated: savedData.lastUpdated
+        };
+        
         showNotification('Прогресс сохранен');
 
     } catch (error) {
