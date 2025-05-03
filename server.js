@@ -172,13 +172,20 @@ app.get('/api/players/:telegramId', async (req, res) => {
             paramId: telegramId,
             headerId: telegramUserId,
             version: telegramVersion,
-            headers: req.headers
+            headers: req.headers,
+            timestamp: new Date()
         });
         
         // Проверяем подключение к MongoDB
         if (!client.topology || !client.topology.isConnected()) {
             console.error('MongoDB не подключен');
-            return res.status(500).json({ error: 'Database connection error' });
+            return res.status(500).json({ 
+                error: 'Database connection error',
+                details: {
+                    timestamp: new Date(),
+                    headers: req.headers
+                }
+            });
         }
         
         const db = client.db('econoch');
@@ -202,7 +209,9 @@ app.get('/api/players/:telegramId', async (req, res) => {
                 error: 'Player not found',
                 details: {
                     telegramId: telegramId,
-                    query: query
+                    query: query,
+                    timestamp: new Date(),
+                    headers: req.headers
                 }
             });
         }
@@ -211,9 +220,13 @@ app.get('/api/players/:telegramId', async (req, res) => {
         console.error('Стек ошибки:', error.stack);
         res.status(500).json({ 
             error: 'Internal server error', 
-            details: error.message,
-            path: req.path,
-            method: req.method
+            details: {
+                message: error.message,
+                path: req.path,
+                method: req.method,
+                timestamp: new Date(),
+                headers: req.headers
+            }
         });
     }
 });

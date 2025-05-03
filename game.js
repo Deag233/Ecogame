@@ -101,14 +101,48 @@ async function initializeGame() {
     try {
         // Проверяем данные Telegram
         console.log('Начало инициализации игры...');
+        console.log('Данные Telegram:', {
+            initData: tg.initData,
+            initDataUnsafe: tg.initDataUnsafe,
+            user: tg.initDataUnsafe?.user,
+            version: window.Telegram.WebApp.version,
+            platform: window.Telegram.WebApp.platform,
+            colorScheme: window.Telegram.WebApp.colorScheme
+        });
+        
         checkTelegramData();
         
         // Проверяем статус API
         updateLoadingStatus('Проверка соединения с сервером...');
         console.log('Проверка соединения с сервером...');
-        const apiStatus = await checkApiStatus();
-        if (!apiStatus) {
-            throw new Error('Сервер недоступен');
+        
+        try {
+            const apiStatus = await checkApiStatus();
+            if (!apiStatus) {
+                throw new Error('Сервер недоступен');
+            }
+            console.log('Соединение с сервером установлено');
+        } catch (error) {
+            console.error('Ошибка проверки API:', error);
+            updateLoadingStatus(`Ошибка: ${error.message}`);
+            throw error;
+        }
+
+        // Проверяем статус базы данных
+        updateLoadingStatus('Проверка базы данных...');
+        console.log('Проверка базы данных...');
+        
+        try {
+            const dbStatus = await fetch(`${API_URL}/status`).then(r => r.json());
+            console.log('Статус базы данных:', dbStatus);
+            
+            if (dbStatus.status !== 'ok') {
+                throw new Error('Проблема с базой данных');
+            }
+        } catch (error) {
+            console.error('Ошибка проверки базы данных:', error);
+            updateLoadingStatus(`Ошибка: ${error.message}`);
+            throw error;
         }
 
         // Загружаем состояние игры
@@ -135,6 +169,19 @@ async function initializeGame() {
         console.error('Стек ошибки:', error.stack);
         updateLoadingStatus(`Ошибка: ${error.message}`);
         showNotification(`Ошибка инициализации: ${error.message}`, true);
+        
+        // Показываем подробности ошибки в консоли
+        console.error('Детали ошибки:', {
+            name: error.name,
+            message: error.message,
+            stack: error.stack,
+            telegramData: {
+                initData: tg.initData,
+                user: tg.initDataUnsafe?.user,
+                version: window.Telegram.WebApp.version
+            },
+            apiUrl: API_URL
+        });
     }
 }
 
@@ -302,7 +349,8 @@ async function checkApiStatus() {
         console.log('Проверка статуса API...');
         console.log('URL API:', API_URL);
         
-        const response = await fetch(`${API_URL}/players`, {
+        // Проверяем доступность сервера
+        const response = await fetch(`${API_URL}/status`, {
             method: 'GET',
             headers: {
                 'Content-Type': 'application/json',
@@ -325,6 +373,11 @@ async function checkApiStatus() {
         if (data.status !== 'ok') {
             throw new Error('Сервер вернул некорректный статус');
         }
+
+        // Проверяем подключение к базе данных
+        if (data.connection !== 'active') {
+            throw new Error('База данных недоступна');
+        }
         
         return true;
     } catch (error) {
@@ -334,7 +387,12 @@ async function checkApiStatus() {
                 error: error.message,
                 type: error.name,
                 stack: error.stack,
-                url: API_URL
+                url: API_URL,
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/json',
+                    'Origin': window.location.origin
+                }
             });
             throw new Error('Не удалось подключиться к серверу. Проверьте подключение к интернету и работу сервера.');
         }
@@ -356,7 +414,8 @@ async function loadGameState() {
             initData: tg.initData,
             user: tg.initDataUnsafe?.user,
             id: tg.initDataUnsafe?.user?.id,
-            version: window.Telegram.WebApp.version
+            version: window.Telegram.WebApp.version,
+            platform: window.Telegram.WebApp.platform
         });
         
         const telegramId = tg.initDataUnsafe?.user?.id;
@@ -440,6 +499,17 @@ async function loadGameState() {
     } catch (error) {
         console.error('Ошибка загрузки:', error);
         console.error('Стек ошибки:', error.stack);
+        console.error('Детали ошибки:', {
+            name: error.name,
+            message: error.message,
+            stack: error.stack,
+            telegramData: {
+                initData: tg.initData,
+                user: tg.initDataUnsafe?.user,
+                version: window.Telegram.WebApp.version
+            },
+            apiUrl: API_URL
+        });
         showNotification(`Ошибка: ${error.message}`, true);
         // Инициализируем с значениями по умолчанию при ошибке
         gameState = initializeGameState();
