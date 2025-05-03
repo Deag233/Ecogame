@@ -66,11 +66,6 @@ async function saveGameState() {
         const telegramId = tg.initDataUnsafe?.user?.id;
         if (!telegramId) {
             console.error('No Telegram user ID available');
-            tg.showPopup({
-                title: 'Ошибка',
-                message: 'Не удалось получить ID пользователя Telegram. Пожалуйста, откройте игру через бота.',
-                buttons: [{ type: 'ok' }]
-            });
             return;
         }
 
@@ -122,11 +117,6 @@ async function saveGameState() {
         console.log('Game state saved successfully:', JSON.stringify(savedData, null, 2));
     } catch (error) {
         console.error('Error saving game state:', error);
-        tg.showPopup({
-            title: 'Ошибка сохранения',
-            message: `Не удалось сохранить прогресс: ${error.message}. Попробуйте позже.`,
-            buttons: [{ type: 'ok' }]
-        });
     }
 }
 
@@ -136,11 +126,6 @@ async function loadGameState() {
         const telegramId = tg.initDataUnsafe?.user?.id;
         if (!telegramId) {
             console.error('No Telegram user ID available');
-            tg.showPopup({
-                title: 'Ошибка',
-                message: 'Не удалось получить ID пользователя Telegram. Пожалуйста, откройте игру через бота.',
-                buttons: [{ type: 'ok' }]
-            });
             return;
         }
 
@@ -182,12 +167,6 @@ async function loadGameState() {
         }
     } catch (error) {
         console.error('Error loading game state:', error);
-        tg.showPopup({
-            title: 'Ошибка загрузки',
-            message: `Не удалось загрузить сохраненный прогресс: ${error.message}. Начинаем новую игру.`,
-            buttons: [{ type: 'ok' }]
-        });
-        
         gameState = {
             score: 0,
             multiplier: 1,
