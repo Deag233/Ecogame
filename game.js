@@ -322,6 +322,23 @@ updateUI();
 const settingsButton = document.getElementById('settingsButton');
 let settingsClickCount = 0;
 let devMenuOpen = false;
+let lastClickTime = 0;
+
+function showClickCount() {
+    const notification = document.createElement('div');
+    notification.style.position = 'fixed';
+    notification.style.top = '50%';
+    notification.style.left = '50%';
+    notification.style.transform = 'translate(-50%, -50%)';
+    notification.style.padding = '10px 20px';
+    notification.style.backgroundColor = 'var(--tg-theme-bg-color, #2c3e50)';
+    notification.style.color = 'var(--tg-theme-text-color, white)';
+    notification.style.borderRadius = '5px';
+    notification.style.zIndex = '1002';
+    notification.textContent = `${14 - settingsClickCount} кликов осталось`;
+    document.body.appendChild(notification);
+    setTimeout(() => notification.remove(), 1000);
+}
 
 function createDevMenu() {
     // Remove existing dev menu if it exists
@@ -442,8 +459,19 @@ createDevMenu();
 if (settingsButton) {
     console.log('Settings button found, adding click handler');
     settingsButton.addEventListener('click', () => {
+        const currentTime = Date.now();
+        // Reset count if more than 2 seconds between clicks
+        if (currentTime - lastClickTime > 2000) {
+            settingsClickCount = 0;
+        }
+        lastClickTime = currentTime;
+
         console.log('Settings button clicked, count:', settingsClickCount + 1);
         settingsClickCount++;
+        
+        // Show click count notification
+        showClickCount();
+
         if (settingsClickCount >= 14 && !devMenuOpen) {
             console.log('Opening developer menu');
             const devMenu = document.getElementById('devMenu');
