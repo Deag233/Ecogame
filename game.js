@@ -3,7 +3,7 @@ const tg = window.Telegram.WebApp;
 tg.expand();
 
 // API URL - будет заменен на реальный URL после деплоя
-const API_URL = 'https://telegram-clicker-game.onrender.com/api';
+const API_URL = 'https://econoch.onrender.com/api';
 
 // Game state
 let gameState = {
