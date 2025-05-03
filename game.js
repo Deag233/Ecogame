@@ -120,15 +120,6 @@ async function saveGameState() {
         
         const savedData = await response.json();
         console.log('Game state saved successfully:', JSON.stringify(savedData, null, 2));
-        
-        // Only show success popup if score has changed
-        if (savedData.score !== gameState.score) {
-            tg.showPopup({
-                title: 'Сохранено',
-                message: 'Прогресс успешно сохранен!',
-                buttons: [{ type: 'ok' }]
-            });
-        }
     } catch (error) {
         console.error('Error saving game state:', error);
         tg.showPopup({
@@ -168,13 +159,7 @@ async function loadGameState() {
                     clickPower: { level: 0, cost: 50, baseCost: 50, power: 1 }
                 }
             };
-            await updateUI();
-            
-            tg.showPopup({
-                title: 'Загружено',
-                message: 'Прогресс успешно загружен!',
-                buttons: [{ type: 'ok' }]
-            });
+            updateUI();
         } else if (response.status === 404) {
             console.log('No saved game state found, starting new game');
             gameState = {
@@ -185,7 +170,7 @@ async function loadGameState() {
                     clickPower: { level: 0, cost: 50, baseCost: 50, power: 1 }
                 }
             };
-            await updateUI();
+            updateUI();
         } else {
             const errorData = await response.json();
             console.error('Server response error:', {
@@ -211,7 +196,7 @@ async function loadGameState() {
                 clickPower: { level: 0, cost: 50, baseCost: 50, power: 1 }
             }
         };
-        await updateUI();
+        updateUI();
     }
 }
 
