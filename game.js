@@ -274,13 +274,23 @@ async function checkApiStatus() {
             method: 'OPTIONS',
             headers: {
                 'Content-Type': 'application/json',
+                'Accept': 'application/json'
             }
         });
         console.log('API status response:', response.status);
-        return response.ok;
+        
+        if (!response.ok) {
+            console.error('API response not OK:', response.status, response.statusText);
+            throw new Error(`Сервер вернул ошибку: ${response.status} ${response.statusText}`);
+        }
+        
+        return true;
     } catch (error) {
         console.error('API status check failed:', error);
-        return false;
+        if (error.message.includes('Failed to fetch')) {
+            throw new Error('Не удалось подключиться к серверу. Проверьте подключение к интернету.');
+        }
+        throw error;
     }
 }
 
@@ -297,11 +307,16 @@ async function loadGameState() {
         }
 
         // Check API status first
-        const apiStatus = await checkApiStatus();
-        if (!apiStatus) {
-            console.error('API is not available');
-            showNotification('Ошибка: Сервер недоступен', true);
-            return;
+        try {
+            updateLoadingStatus('Проверка соединения с сервером...');
+            const apiStatus = await checkApiStatus();
+            if (!apiStatus) {
+                throw new Error('Сервер недоступен');
+            }
+        } catch (error) {
+            console.error('API check failed:', error);
+            updateLoadingStatus(`Ошибка: ${error.message}`);
+            throw error;
         }
 
         showNotification('Загрузка...');
