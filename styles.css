@@ -91,4 +91,20 @@ body {
 .upgrade-item span {
     font-size: 0.9em;
     color: var(--tg-theme-hint-color, #999999);
+}
+
+.settings-button {
+    position: fixed;
+    top: 10px;
+    right: 10px;
+    padding: 10px;
+    font-size: 20px;
+    border: none;
+    background: none;
+    cursor: pointer;
+    z-index: 1000;
+}
+
+.settings-button:hover {
+    transform: scale(1.1);
 } 

@@ -251,19 +251,8 @@ loadGameState();
 // Initial UI update
 updateUI();
 
-// Add after DOM Elements section
-const settingsButton = document.createElement('button');
-settingsButton.textContent = '⚙️';
-settingsButton.style.position = 'fixed';
-settingsButton.style.top = '10px';
-settingsButton.style.right = '10px';
-settingsButton.style.padding = '10px';
-settingsButton.style.fontSize = '20px';
-settingsButton.style.border = 'none';
-settingsButton.style.background = 'none';
-settingsButton.style.cursor = 'pointer';
-document.body.appendChild(settingsButton);
-
+// Replace the settings button creation code with this:
+const settingsButton = document.getElementById('settingsButton');
 let settingsClickCount = 0;
 let devMenuOpen = false;
 
