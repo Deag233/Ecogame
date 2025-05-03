@@ -281,14 +281,31 @@ async function saveGameState() {
 
         console.log('Saving game state:', saveData);
 
-        const response = await fetch(`${API_URL}/players`, {
-            method: 'POST',
+        // First try to update existing player
+        const updateResponse = await fetch(`${API_URL}/players/${telegramId}`, {
+            method: 'PUT',
             headers: {
                 'Content-Type': 'application/json',
                 'Accept': 'application/json'
             },
             body: JSON.stringify(saveData)
         });
+
+        let response;
+        if (updateResponse.status === 404) {
+            // If player doesn't exist, create new
+            console.log('Player not found, creating new...');
+            response = await fetch(`${API_URL}/players`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/json'
+                },
+                body: JSON.stringify(saveData)
+            });
+        } else {
+            response = updateResponse;
+        }
         
         console.log('Save response status:', response.status);
         console.log('Save response headers:', Object.fromEntries(response.headers.entries()));
@@ -307,7 +324,8 @@ async function saveGameState() {
         gameState = {
             ...gameState,
             _id: savedData._id,
-            lastUpdated: savedData.lastUpdated
+            lastUpdated: savedData.lastUpdated,
+            __v: savedData.__v
         };
         
         showNotification('Прогресс сохранен');
