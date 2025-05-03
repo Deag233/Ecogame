@@ -26,11 +26,10 @@ console.log('Telegram WebApp data:', {
 const API_URL = 'https://econoch.onrender.com/api';
 
 // Initialize game state with default values
-let gameState = null;
-
 function initializeGameState(data = null) {
     console.log('Initializing game state with data:', data);
-    gameState = {
+    
+    const defaultState = {
         score: 0,
         multiplier: 1,
         upgrades: {
@@ -50,35 +49,28 @@ function initializeGameState(data = null) {
     };
 
     if (data) {
-        gameState.score = Number(data.score) || 0;
-        gameState.multiplier = Number(data.multiplier) || 1;
-        
-        if (data.upgrades) {
-            if (data.upgrades.autoClicker) {
-                gameState.upgrades.autoClicker = {
-                    level: Number(data.upgrades.autoClicker.level) || 0,
-                    cost: Number(data.upgrades.autoClicker.cost) || 10,
-                    baseCost: Number(data.upgrades.autoClicker.baseCost) || 10,
-                    clicksPerSecond: Number(data.upgrades.autoClicker.clicksPerSecond) || 0
-                };
+        // Merge provided data with default state
+        return {
+            ...defaultState,
+            ...data,
+            upgrades: {
+                autoClicker: {
+                    ...defaultState.upgrades.autoClicker,
+                    ...(data.upgrades?.autoClicker || {})
+                },
+                clickPower: {
+                    ...defaultState.upgrades.clickPower,
+                    ...(data.upgrades?.clickPower || {})
+                }
             }
-            if (data.upgrades.clickPower) {
-                gameState.upgrades.clickPower = {
-                    level: Number(data.upgrades.clickPower.level) || 0,
-                    cost: Number(data.upgrades.clickPower.cost) || 50,
-                    baseCost: Number(data.upgrades.clickPower.baseCost) || 50,
-                    power: Number(data.upgrades.clickPower.power) || 1
-                };
-            }
-        }
+        };
     }
-    
-    console.log('Game state initialized:', gameState);
-    return gameState;
+
+    return defaultState;
 }
 
-// Initialize game state immediately
-initializeGameState();
+// Initialize game state
+let gameState = initializeGameState();
 
 // DOM Elements
 const scoreElement = document.getElementById('score');
@@ -110,12 +102,26 @@ function showNotification(message, isError = false) {
 
 // Add debounce function to prevent multiple saves
 let saveTimeout = null;
+let lastSaveTime = 0;
+const SAVE_COOLDOWN = 5000; // 5 seconds between saves
+
 async function debouncedSave() {
+    const now = Date.now();
+    if (now - lastSaveTime < SAVE_COOLDOWN) {
+        return;
+    }
+    
     if (saveTimeout) {
         clearTimeout(saveTimeout);
     }
+    
     saveTimeout = setTimeout(async () => {
-        await saveGameState();
+        try {
+            await saveGameState();
+            lastSaveTime = Date.now();
+        } catch (error) {
+            console.error('Error in debounced save:', error);
+        }
     }, 1000);
 }
 
@@ -184,7 +190,6 @@ async function saveGameState() {
 
         console.log('Preparing to save game state:', saveData);
 
-        showNotification('Сохранение...');
         const response = await fetch(`${API_URL}/players`, {
             method: 'POST',
             headers: {
@@ -302,17 +307,18 @@ async function buyClickPower() {
     }
 }
 
-// Auto clicker
+// Update auto clicker function
 async function autoClick() {
-    console.log('Auto click, current gameState:', gameState);
-    
     if (!gameState) {
         console.error('gameState is not initialized in autoClick');
         gameState = initializeGameState();
     }
     
-    gameState.score += gameState.upgrades.autoClicker.clicksPerSecond * gameState.upgrades.clickPower.power;
-    await updateUI();
+    const clickValue = gameState.upgrades.autoClicker.clicksPerSecond * gameState.upgrades.clickPower.power;
+    if (clickValue > 0) {
+        gameState.score += clickValue;
+        await updateUI();
+    }
 }
 
 // Event listeners
