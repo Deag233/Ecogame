@@ -202,36 +202,40 @@ async function loadGameState() {
 }
 
 // Click handler
-function handleClick() {
+async function handleClick() {
     gameState.score += gameState.multiplier * gameState.upgrades.clickPower.power;
     updateUI();
+    await saveGameState(); // Сохраняем после каждого клика
 }
 
 // Upgrade handlers
-function buyAutoClicker() {
+async function buyAutoClicker() {
     if (gameState.score >= gameState.upgrades.autoClicker.cost) {
         gameState.score -= gameState.upgrades.autoClicker.cost;
         gameState.upgrades.autoClicker.level++;
         gameState.upgrades.autoClicker.clicksPerSecond += 0.5;
         gameState.upgrades.autoClicker.cost = Math.floor(gameState.upgrades.autoClicker.baseCost * Math.pow(1.5, gameState.upgrades.autoClicker.level));
         updateUI();
+        await saveGameState(); // Сохраняем после покупки улучшения
     }
 }
 
-function buyClickPower() {
+async function buyClickPower() {
     if (gameState.score >= gameState.upgrades.clickPower.cost) {
         gameState.score -= gameState.upgrades.clickPower.cost;
         gameState.upgrades.clickPower.level++;
         gameState.upgrades.clickPower.power *= 1.5;
         gameState.upgrades.clickPower.cost = Math.floor(gameState.upgrades.clickPower.baseCost * Math.pow(1.5, gameState.upgrades.clickPower.level));
         updateUI();
+        await saveGameState(); // Сохраняем после покупки улучшения
     }
 }
 
 // Auto clicker
-function autoClick() {
+async function autoClick() {
     gameState.score += gameState.upgrades.autoClicker.clicksPerSecond * gameState.upgrades.clickPower.power;
     updateUI();
+    await saveGameState(); // Сохраняем после авто-клика
 }
 
 // Event listeners
@@ -241,9 +245,6 @@ upgrade2Button.addEventListener('click', buyClickPower);
 
 // Start auto clicker
 setInterval(autoClick, 1000);
-
-// Save game state periodically
-setInterval(saveGameState, 5000);
 
 // Load game state when app starts
 loadGameState();
