@@ -18,31 +18,120 @@ app.use((req, res, next) => {
     next();
 });
 
-// MongoDB connection string
+// MongoDB connection
 const uri = 'mongodb+srv://econoch:DeaG16181822@cluster0.zweknv6.mongodb.net/econoch?retryWrites=true&w=majority&appName=Cluster0';
-const client = new MongoClient(uri);
+const client = new MongoClient(uri, {
+    serverSelectionTimeoutMS: 5000,
+    connectTimeoutMS: 10000,
+    socketTimeoutMS: 45000,
+    maxPoolSize: 10,
+    minPoolSize: 5,
+    maxIdleTimeMS: 30000,
+    retryWrites: true,
+    retryReads: true
+});
 
-// Connect to MongoDB
-async function connectToMongo() {
+// Функция для проверки подключения к MongoDB
+async function checkMongoConnection() {
     try {
-        await client.connect();
-        console.log('Connected to MongoDB');
-        
-        // Test the connection by accessing the database
-        const db = client.db('econoch');
-        const collections = await db.listCollections().toArray();
-        console.log('Available collections:', collections.map(c => c.name));
-        
-        // Ensure players collection exists
-        if (!collections.find(c => c.name === 'players')) {
-            await db.createCollection('players');
-            console.log('Created players collection');
+        console.log('Проверка подключения к MongoDB...');
+        if (!client.topology || !client.topology.isConnected()) {
+            console.log('Переподключение к MongoDB...');
+            await client.connect();
         }
+        
+        const db = client.db('econoch');
+        console.log('Подключение к базе данных:', db.databaseName);
+        
+        // Проверяем доступность коллекции
+        const collections = await db.listCollections().toArray();
+        console.log('Доступные коллекции:', collections.map(c => c.name));
+        
+        // Проверяем индексы
+        const playersCollection = db.collection('players');
+        const indexes = await playersCollection.indexes();
+        console.log('Индексы коллекции players:', indexes);
+        
+        return true;
     } catch (error) {
-        console.error('MongoDB connection error:', error);
-        process.exit(1);
+        console.error('Ошибка подключения к MongoDB:', error);
+        console.error('Детали ошибки:', {
+            name: error.name,
+            message: error.message,
+            code: error.code,
+            stack: error.stack
+        });
+        return false;
     }
 }
+
+// Проверяем подключение при старте
+client.connect()
+    .then(async () => {
+        console.log('Connected to MongoDB');
+        const isConnected = await checkMongoConnection();
+        if (!isConnected) {
+            console.error('Не удалось установить стабильное подключение к MongoDB');
+            process.exit(1);
+        }
+    })
+    .catch(err => {
+        console.error('Failed to connect to MongoDB:', err);
+        process.exit(1);
+    });
+
+// Добавляем обработчик для проверки состояния подключения
+app.get('/api/status', async (req, res) => {
+    try {
+        const isConnected = await checkMongoConnection();
+        if (!isConnected) {
+            return res.status(500).json({
+                status: 'error',
+                message: 'Database connection error',
+                timestamp: new Date()
+            });
+        }
+        
+        res.json({
+            status: 'ok',
+            database: 'econoch',
+            connection: 'active',
+            timestamp: new Date()
+        });
+    } catch (error) {
+        console.error('Ошибка проверки статуса:', error);
+        res.status(500).json({
+            status: 'error',
+            message: error.message,
+            timestamp: new Date()
+        });
+    }
+});
+
+// Добавляем обработчик для проверки коллекции
+app.get('/api/collections', async (req, res) => {
+    try {
+        const db = client.db('econoch');
+        const collections = await db.listCollections().toArray();
+        
+        res.json({
+            status: 'ok',
+            collections: collections.map(c => ({
+                name: c.name,
+                type: c.type,
+                options: c.options
+            })),
+            timestamp: new Date()
+        });
+    } catch (error) {
+        console.error('Ошибка получения списка коллекций:', error);
+        res.status(500).json({
+            status: 'error',
+            message: error.message,
+            timestamp: new Date()
+        });
+    }
+});
 
 // Add OPTIONS route for CORS preflight
 app.options('/api/players/:telegramId', cors());
@@ -76,8 +165,15 @@ app.get('/api/players', async (req, res) => {
 app.get('/api/players/:telegramId', async (req, res) => {
     try {
         const { telegramId } = req.params;
-        console.log('GET запрос для игрока:', telegramId);
-        console.log('Тип telegramId:', typeof telegramId);
+        const telegramUserId = req.headers['x-telegram-user-id'];
+        const telegramVersion = req.headers['x-telegram-version'];
+        
+        console.log('GET запрос для игрока:', {
+            paramId: telegramId,
+            headerId: telegramUserId,
+            version: telegramVersion,
+            headers: req.headers
+        });
         
         // Проверяем подключение к MongoDB
         if (!client.topology || !client.topology.isConnected()) {
@@ -102,12 +198,23 @@ app.get('/api/players/:telegramId', async (req, res) => {
             res.json(player);
         } else {
             console.log('Игрок не найден, возвращаем 404');
-            res.status(404).json({ error: 'Player not found' });
+            res.status(404).json({ 
+                error: 'Player not found',
+                details: {
+                    telegramId: telegramId,
+                    query: query
+                }
+            });
         }
     } catch (error) {
         console.error('Ошибка при получении игрока:', error);
         console.error('Стек ошибки:', error.stack);
-        res.status(500).json({ error: 'Internal server error', details: error.message });
+        res.status(500).json({ 
+            error: 'Internal server error', 
+            details: error.message,
+            path: req.path,
+            method: req.method
+        });
     }
 });
 
@@ -165,9 +272,8 @@ app.put('/api/players/:telegramId', async (req, res) => {
     }
 });
 
-// Start server
-connectToMongo().then(() => {
-    app.listen(port, () => {
-        console.log(`Server running on port ${port}`);
-    });
+// Start the server
+const PORT = process.env.PORT || 3001;
+app.listen(PORT, () => {
+    console.log(`Server running on port ${PORT}`);
 }); 
