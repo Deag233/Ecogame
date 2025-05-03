@@ -56,6 +56,23 @@ const upgrade2CostElement = document.getElementById('upgrade2Cost');
 const upgrade1LevelElement = document.getElementById('upgrade1Level');
 const upgrade2LevelElement = document.getElementById('upgrade2Level');
 
+// Add this function after the DOM Elements section
+function showNotification(message, isError = false) {
+    const notification = document.createElement('div');
+    notification.style.position = 'fixed';
+    notification.style.top = '20px';
+    notification.style.left = '50%';
+    notification.style.transform = 'translateX(-50%)';
+    notification.style.padding = '10px 20px';
+    notification.style.borderRadius = '5px';
+    notification.style.backgroundColor = isError ? '#ff4444' : '#4CAF50';
+    notification.style.color = 'white';
+    notification.style.zIndex = '1000';
+    notification.textContent = message;
+    document.body.appendChild(notification);
+    setTimeout(() => notification.remove(), 3000);
+}
+
 // Update UI and save state
 async function updateUI() {
     scoreElement.textContent = Math.floor(gameState.score);
@@ -73,12 +90,12 @@ async function updateUI() {
     await saveGameState();
 }
 
-// Save game state to server
+// Update saveGameState function
 async function saveGameState() {
     try {
         const telegramId = tg.initDataUnsafe?.user?.id;
         if (!telegramId) {
-            console.error('No Telegram user ID available');
+            showNotification('Ошибка: ID пользователя не найден', true);
             return;
         }
 
@@ -104,10 +121,7 @@ async function saveGameState() {
             }
         };
 
-        console.log('=== SAVE REQUEST START ===');
-        console.log('Sending save request with data:', JSON.stringify(saveData, null, 2));
-        console.log('API URL:', API_URL);
-
+        showNotification('Сохранение...');
         const response = await fetch(`${API_URL}/players`, {
             method: 'POST',
             headers: {
@@ -118,39 +132,31 @@ async function saveGameState() {
         
         if (!response.ok) {
             const errorData = await response.json();
-            console.error('Server response error:', {
-                status: response.status,
-                statusText: response.statusText,
-                error: errorData
-            });
+            showNotification(`Ошибка сохранения: ${errorData.error || response.statusText}`, true);
             throw new Error(`Failed to save game state: ${errorData.error || response.statusText}`);
         }
         
         const savedData = await response.json();
-        console.log('Save response:', JSON.stringify(savedData, null, 2));
-        console.log('=== SAVE REQUEST END ===');
+        showNotification('Прогресс сохранен');
     } catch (error) {
-        console.error('Error saving game state:', error);
-        console.error('Error details:', error.stack);
+        showNotification(`Ошибка: ${error.message}`, true);
     }
 }
 
-// Load game state from server
+// Update loadGameState function
 async function loadGameState() {
     try {
         const telegramId = tg.initDataUnsafe?.user?.id;
         if (!telegramId) {
-            console.error('No Telegram user ID available');
+            showNotification('Ошибка: ID пользователя не найден', true);
             return;
         }
 
-        console.log('Attempting to load game state for user:', telegramId);
+        showNotification('Загрузка...');
         const response = await fetch(`${API_URL}/players/${telegramId}`);
         
         if (response.ok) {
             const data = await response.json();
-            console.log('Loaded game state:', data);
-            
             gameState = {
                 score: data.score || 0,
                 multiplier: data.multiplier || 1,
@@ -159,9 +165,10 @@ async function loadGameState() {
                     clickPower: { level: 0, cost: 50, baseCost: 50, power: 1 }
                 }
             };
+            showNotification('Прогресс загружен');
             updateUI();
         } else if (response.status === 404) {
-            console.log('No saved game state found, starting new game');
+            showNotification('Начинаем новую игру');
             gameState = {
                 score: 0,
                 multiplier: 1,
@@ -173,15 +180,11 @@ async function loadGameState() {
             updateUI();
         } else {
             const errorData = await response.json();
-            console.error('Server response error:', {
-                status: response.status,
-                statusText: response.statusText,
-                error: errorData
-            });
+            showNotification(`Ошибка загрузки: ${errorData.error || response.statusText}`, true);
             throw new Error(`Failed to load game state: ${errorData.error || response.statusText}`);
         }
     } catch (error) {
-        console.error('Error loading game state:', error);
+        showNotification(`Ошибка: ${error.message}`, true);
         gameState = {
             score: 0,
             multiplier: 1,
