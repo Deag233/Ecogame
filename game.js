@@ -303,7 +303,7 @@ async function checkApiStatus() {
         console.log('URL API:', API_URL);
         
         const response = await fetch(`${API_URL}/players`, {
-            method: 'OPTIONS',
+            method: 'GET',
             headers: {
                 'Content-Type': 'application/json',
                 'Accept': 'application/json',
@@ -317,6 +317,13 @@ async function checkApiStatus() {
         if (!response.ok) {
             console.error('Ответ API не OK:', response.status, response.statusText);
             throw new Error(`Сервер вернул ошибку: ${response.status} ${response.statusText}`);
+        }
+
+        const data = await response.json();
+        console.log('Ответ сервера:', data);
+        
+        if (data.status !== 'ok') {
+            throw new Error('Сервер вернул некорректный статус');
         }
         
         return true;

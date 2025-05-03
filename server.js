@@ -48,6 +48,30 @@ async function connectToMongo() {
 app.options('/api/players/:telegramId', cors());
 app.options('/api/players', cors());
 
+// Добавляем проверку статуса сервера
+app.get('/api/players', async (req, res) => {
+    try {
+        // Проверяем подключение к MongoDB
+        if (!client.topology || !client.topology.isConnected()) {
+            console.error('MongoDB не подключен');
+            return res.status(500).json({ error: 'Database connection error' });
+        }
+
+        const db = client.db('econoch');
+        const collections = await db.listCollections().toArray();
+        
+        res.json({ 
+            status: 'ok',
+            database: 'econoch',
+            collections: collections.map(c => c.name),
+            serverTime: new Date()
+        });
+    } catch (error) {
+        console.error('Ошибка проверки статуса:', error);
+        res.status(500).json({ error: 'Internal server error', details: error.message });
+    }
+});
+
 // Routes
 app.get('/api/players/:telegramId', async (req, res) => {
     try {
@@ -56,7 +80,7 @@ app.get('/api/players/:telegramId', async (req, res) => {
         console.log('Тип telegramId:', typeof telegramId);
         
         // Проверяем подключение к MongoDB
-        if (!client.isConnected()) {
+        if (!client.topology || !client.topology.isConnected()) {
             console.error('MongoDB не подключен');
             return res.status(500).json({ error: 'Database connection error' });
         }
