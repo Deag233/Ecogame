@@ -108,6 +108,7 @@ const SAVE_COOLDOWN = 5000; // 5 seconds between saves
 async function debouncedSave() {
     const now = Date.now();
     if (now - lastSaveTime < SAVE_COOLDOWN) {
+        console.log('Save cooldown active, skipping save');
         return;
     }
     
@@ -117,6 +118,7 @@ async function debouncedSave() {
     
     saveTimeout = setTimeout(async () => {
         try {
+            console.log('Executing debounced save...');
             await saveGameState();
             lastSaveTime = Date.now();
         } catch (error) {
@@ -147,22 +149,114 @@ async function updateUI() {
     await debouncedSave();
 }
 
+// Add function to check API status
+async function checkApiStatus() {
+    try {
+        console.log('Checking API status...');
+        const response = await fetch(`${API_URL}/players`, {
+            method: 'OPTIONS',
+            headers: {
+                'Content-Type': 'application/json',
+            }
+        });
+        console.log('API status response:', response.status);
+        return response.ok;
+    } catch (error) {
+        console.error('API status check failed:', error);
+        return false;
+    }
+}
+
+// Update loadGameState function
+async function loadGameState() {
+    try {
+        console.log('Starting loadGameState...');
+        
+        const telegramId = tg.initDataUnsafe?.user?.id;
+        if (!telegramId) {
+            console.error('No telegram ID found');
+            showNotification('Ошибка: ID пользователя не найден', true);
+            return;
+        }
+
+        // Check API status first
+        const apiStatus = await checkApiStatus();
+        if (!apiStatus) {
+            console.error('API is not available');
+            showNotification('Ошибка: Сервер недоступен', true);
+            return;
+        }
+
+        showNotification('Загрузка...');
+        console.log('Fetching game state for user:', telegramId);
+        
+        const response = await fetch(`${API_URL}/players/${telegramId}`, {
+            method: 'GET',
+            headers: {
+                'Content-Type': 'application/json',
+            }
+        });
+        
+        console.log('Load response status:', response.status);
+        console.log('Load response headers:', Object.fromEntries(response.headers.entries()));
+        
+        if (response.ok) {
+            const data = await response.json();
+            console.log('Loaded game data:', data);
+            
+            // Initialize gameState with loaded data
+            gameState = initializeGameState(data);
+            console.log('Game state initialized with loaded data:', gameState);
+            
+            showNotification('Прогресс загружен');
+            updateUI();
+        } else if (response.status === 404) {
+            console.log('No saved game found, starting new game');
+            showNotification('Начинаем новую игру');
+            gameState = initializeGameState();
+            updateUI();
+        } else {
+            const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
+            console.error('Load error response:', errorData);
+            showNotification(`Ошибка загрузки: ${errorData.error || response.statusText}`, true);
+            throw new Error(`Failed to load game state: ${errorData.error || response.statusText}`);
+        }
+    } catch (error) {
+        console.error('Load error:', error);
+        showNotification(`Ошибка: ${error.message}`, true);
+        // Initialize with default values on error
+        gameState = initializeGameState();
+        updateUI();
+    }
+}
+
 // Update saveGameState function
 async function saveGameState() {
     try {
+        console.log('Starting saveGameState...');
+        
         const telegramId = tg.initDataUnsafe?.user?.id;
         if (!telegramId) {
+            console.error('No telegram ID found');
             showNotification('Ошибка: ID пользователя не найден', true);
+            return;
+        }
+
+        // Check API status first
+        const apiStatus = await checkApiStatus();
+        if (!apiStatus) {
+            console.error('API is not available');
+            showNotification('Ошибка: Сервер недоступен', true);
             return;
         }
 
         // Validate gameState
         if (!gameState || typeof gameState !== 'object') {
-            console.error('Invalid gameState in saveGameState:', gameState);
+            console.error('Invalid gameState:', gameState);
             gameState = initializeGameState();
         }
 
-        // Create a deep copy of the game state to ensure all values are included
+        // Create a deep copy of the game state
         const saveData = {
             telegramId,
             username: tg.initDataUnsafe?.user?.username || 'unknown',
@@ -184,6 +278,8 @@ async function saveGameState() {
             }
         };
 
+        console.log('Saving game state:', saveData);
+
         const response = await fetch(`${API_URL}/players`, {
             method: 'POST',
             headers: {
@@ -192,63 +288,23 @@ async function saveGameState() {
             body: JSON.stringify(saveData)
         });
         
+        console.log('Save response status:', response.status);
+        console.log('Save response headers:', Object.fromEntries(response.headers.entries()));
+        
         if (!response.ok) {
-            const errorData = await response.json();
+            const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
             console.error('Save error response:', errorData);
             showNotification(`Ошибка сохранения: ${errorData.error || response.statusText}`, true);
             throw new Error(`Failed to save game state: ${errorData.error || response.statusText}`);
         }
         
         const savedData = await response.json();
+        console.log('Game state saved successfully:', savedData);
         showNotification('Прогресс сохранен');
 
     } catch (error) {
         console.error('Save error:', error);
         showNotification(`Ошибка: ${error.message}`, true);
-    }
-}
-
-// Update loadGameState function
-async function loadGameState() {
-    try {
-        console.log('Starting loadGameState');
-        
-        const telegramId = tg.initDataUnsafe?.user?.id;
-        if (!telegramId) {
-            showNotification('Ошибка: ID пользователя не найден', true);
-            return;
-        }
-
-        showNotification('Загрузка...');
-        const response = await fetch(`${API_URL}/players/${telegramId}`);
-        
-        if (response.ok) {
-            const data = await response.json();
-            console.log('Loaded game data:', data);
-            
-            // Initialize gameState with loaded data
-            gameState = initializeGameState(data);
-            console.log('Game state initialized with loaded data:', gameState);
-            
-            showNotification('Прогресс загружен');
-            updateUI();
-        } else if (response.status === 404) {
-            console.log('No saved game found, starting new game');
-            showNotification('Начинаем новую игру');
-            gameState = initializeGameState();
-            updateUI();
-        } else {
-            const errorData = await response.json();
-            console.error('Load error response:', errorData);
-            showNotification(`Ошибка загрузки: ${errorData.error || response.statusText}`, true);
-            throw new Error(`Failed to load game state: ${errorData.error || response.statusText}`);
-        }
-    } catch (error) {
-        console.error('Load error:', error);
-        showNotification(`Ошибка: ${error.message}`, true);
-        // Initialize with default values on error
-        gameState = initializeGameState();
-        updateUI();
     }
 }
 
