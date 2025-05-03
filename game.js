@@ -43,8 +43,8 @@ const upgrade2CostElement = document.getElementById('upgrade2Cost');
 const upgrade1LevelElement = document.getElementById('upgrade1Level');
 const upgrade2LevelElement = document.getElementById('upgrade2Level');
 
-// Update UI
-function updateUI() {
+// Update UI and save state
+async function updateUI() {
     scoreElement.textContent = Math.floor(gameState.score);
     multiplierElement.textContent = gameState.multiplier;
     upgrade1CostElement.textContent = Math.floor(gameState.upgrades.autoClicker.cost);
@@ -55,6 +55,9 @@ function updateUI() {
     // Update button states
     upgrade1Button.disabled = gameState.score < gameState.upgrades.autoClicker.cost;
     upgrade2Button.disabled = gameState.score < gameState.upgrades.clickPower.cost;
+
+    // Save state after any UI update
+    await saveGameState();
 }
 
 // Save game state to server
@@ -154,7 +157,7 @@ async function loadGameState() {
                     clickPower: { level: 0, cost: 50, baseCost: 50, power: 1 }
                 }
             };
-            updateUI();
+            await updateUI();
             
             tg.showPopup({
                 title: 'Загружено',
@@ -171,7 +174,7 @@ async function loadGameState() {
                     clickPower: { level: 0, cost: 50, baseCost: 50, power: 1 }
                 }
             };
-            updateUI();
+            await updateUI();
         } else {
             const errorData = await response.json();
             console.error('Server response error:', {
@@ -197,15 +200,14 @@ async function loadGameState() {
                 clickPower: { level: 0, cost: 50, baseCost: 50, power: 1 }
             }
         };
-        updateUI();
+        await updateUI();
     }
 }
 
 // Click handler
 async function handleClick() {
     gameState.score += gameState.multiplier * gameState.upgrades.clickPower.power;
-    updateUI();
-    await saveGameState(); // Сохраняем после каждого клика
+    await updateUI();
 }
 
 // Upgrade handlers
@@ -215,8 +217,7 @@ async function buyAutoClicker() {
         gameState.upgrades.autoClicker.level++;
         gameState.upgrades.autoClicker.clicksPerSecond += 0.5;
         gameState.upgrades.autoClicker.cost = Math.floor(gameState.upgrades.autoClicker.baseCost * Math.pow(1.5, gameState.upgrades.autoClicker.level));
-        updateUI();
-        await saveGameState(); // Сохраняем после покупки улучшения
+        await updateUI();
     }
 }
 
@@ -226,16 +227,14 @@ async function buyClickPower() {
         gameState.upgrades.clickPower.level++;
         gameState.upgrades.clickPower.power *= 1.5;
         gameState.upgrades.clickPower.cost = Math.floor(gameState.upgrades.clickPower.baseCost * Math.pow(1.5, gameState.upgrades.clickPower.level));
-        updateUI();
-        await saveGameState(); // Сохраняем после покупки улучшения
+        await updateUI();
     }
 }
 
 // Auto clicker
 async function autoClick() {
     gameState.score += gameState.upgrades.autoClicker.clicksPerSecond * gameState.upgrades.clickPower.power;
-    updateUI();
-    await saveGameState(); // Сохраняем после авто-клика
+    await updateUI();
 }
 
 // Event listeners
