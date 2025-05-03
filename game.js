@@ -26,24 +26,59 @@ console.log('Telegram WebApp data:', {
 const API_URL = 'https://econoch.onrender.com/api';
 
 // Initialize game state with default values
-let gameState = {
-    score: 0,
-    multiplier: 1,
-    upgrades: {
-        autoClicker: {
-            level: 0,
-            cost: 10,
-            baseCost: 10,
-            clicksPerSecond: 0
-        },
-        clickPower: {
-            level: 0,
-            cost: 50,
-            baseCost: 50,
-            power: 1
+let gameState = null;
+
+function initializeGameState(data = null) {
+    console.log('Initializing game state with data:', data);
+    gameState = {
+        score: 0,
+        multiplier: 1,
+        upgrades: {
+            autoClicker: {
+                level: 0,
+                cost: 10,
+                baseCost: 10,
+                clicksPerSecond: 0
+            },
+            clickPower: {
+                level: 0,
+                cost: 50,
+                baseCost: 50,
+                power: 1
+            }
+        }
+    };
+
+    if (data) {
+        gameState.score = Number(data.score) || 0;
+        gameState.multiplier = Number(data.multiplier) || 1;
+        
+        if (data.upgrades) {
+            if (data.upgrades.autoClicker) {
+                gameState.upgrades.autoClicker = {
+                    level: Number(data.upgrades.autoClicker.level) || 0,
+                    cost: Number(data.upgrades.autoClicker.cost) || 10,
+                    baseCost: Number(data.upgrades.autoClicker.baseCost) || 10,
+                    clicksPerSecond: Number(data.upgrades.autoClicker.clicksPerSecond) || 0
+                };
+            }
+            if (data.upgrades.clickPower) {
+                gameState.upgrades.clickPower = {
+                    level: Number(data.upgrades.clickPower.level) || 0,
+                    cost: Number(data.upgrades.clickPower.cost) || 50,
+                    baseCost: Number(data.upgrades.clickPower.baseCost) || 50,
+                    power: Number(data.upgrades.clickPower.power) || 1
+                };
+            }
         }
     }
-};
+    
+    console.log('Game state initialized:', gameState);
+    return gameState;
+}
+
+// Initialize game state immediately
+initializeGameState();
 
 // DOM Elements
 const scoreElement = document.getElementById('score');
@@ -75,9 +110,11 @@ function showNotification(message, isError = false) {
 
 // Update UI and save state
 async function updateUI() {
+    console.log('Updating UI, current gameState:', gameState);
+    
     if (!gameState) {
-        console.error('gameState is not initialized');
-        return;
+        console.error('gameState is not initialized in updateUI');
+        gameState = initializeGameState();
     }
 
     scoreElement.textContent = Math.floor(gameState.score);
@@ -98,6 +135,8 @@ async function updateUI() {
 // Update saveGameState function
 async function saveGameState() {
     try {
+        console.log('Starting saveGameState, current gameState:', gameState);
+        
         const telegramId = tg.initDataUnsafe?.user?.id;
         if (!telegramId) {
             showNotification('Ошибка: ID пользователя не найден', true);
@@ -106,9 +145,8 @@ async function saveGameState() {
 
         // Validate gameState
         if (!gameState || typeof gameState !== 'object') {
-            console.error('Invalid gameState:', gameState);
-            showNotification('Ошибка: Некорректное состояние игры', true);
-            return;
+            console.error('Invalid gameState in saveGameState:', gameState);
+            gameState = initializeGameState();
         }
 
         // Create a deep copy of the game state to ensure all values are included
@@ -164,6 +202,8 @@ async function saveGameState() {
 // Update loadGameState function
 async function loadGameState() {
     try {
+        console.log('Starting loadGameState');
+        
         const telegramId = tg.initDataUnsafe?.user?.id;
         if (!telegramId) {
             showNotification('Ошибка: ID пользователя не найден', true);
@@ -177,55 +217,16 @@ async function loadGameState() {
             const data = await response.json();
             console.log('Loaded game data:', data);
             
-            // Initialize gameState with default values
-            gameState = {
-                score: 0,
-                multiplier: 1,
-                upgrades: {
-                    autoClicker: { level: 0, cost: 10, baseCost: 10, clicksPerSecond: 0 },
-                    clickPower: { level: 0, cost: 50, baseCost: 50, power: 1 }
-                }
-            };
-
-            // Update with loaded data if available
-            if (data) {
-                gameState.score = Number(data.score) || 0;
-                gameState.multiplier = Number(data.multiplier) || 1;
-                
-                if (data.upgrades) {
-                    if (data.upgrades.autoClicker) {
-                        gameState.upgrades.autoClicker = {
-                            level: Number(data.upgrades.autoClicker.level) || 0,
-                            cost: Number(data.upgrades.autoClicker.cost) || 10,
-                            baseCost: Number(data.upgrades.autoClicker.baseCost) || 10,
-                            clicksPerSecond: Number(data.upgrades.autoClicker.clicksPerSecond) || 0
-                        };
-                    }
-                    if (data.upgrades.clickPower) {
-                        gameState.upgrades.clickPower = {
-                            level: Number(data.upgrades.clickPower.level) || 0,
-                            cost: Number(data.upgrades.clickPower.cost) || 50,
-                            baseCost: Number(data.upgrades.clickPower.baseCost) || 50,
-                            power: Number(data.upgrades.clickPower.power) || 1
-                        };
-                    }
-                }
-            }
-
-            console.log('Initialized game state:', gameState);
+            // Initialize gameState with loaded data
+            gameState = initializeGameState(data);
+            console.log('Game state initialized with loaded data:', gameState);
+            
             showNotification('Прогресс загружен');
             updateUI();
         } else if (response.status === 404) {
             console.log('No saved game found, starting new game');
             showNotification('Начинаем новую игру');
-            gameState = {
-                score: 0,
-                multiplier: 1,
-                upgrades: {
-                    autoClicker: { level: 0, cost: 10, baseCost: 10, clicksPerSecond: 0 },
-                    clickPower: { level: 0, cost: 50, baseCost: 50, power: 1 }
-                }
-            };
+            gameState = initializeGameState();
             updateUI();
         } else {
             const errorData = await response.json();
@@ -237,34 +238,33 @@ async function loadGameState() {
         console.error('Load error:', error);
         showNotification(`Ошибка: ${error.message}`, true);
         // Initialize with default values on error
-        gameState = {
-            score: 0,
-            multiplier: 1,
-            upgrades: {
-                autoClicker: { level: 0, cost: 10, baseCost: 10, clicksPerSecond: 0 },
-                clickPower: { level: 0, cost: 50, baseCost: 50, power: 1 }
-            }
-        };
+        gameState = initializeGameState();
         updateUI();
     }
 }
 
 // Click handler
 async function handleClick() {
+    console.log('Handle click, current gameState:', gameState);
+    
     if (!gameState) {
-        console.error('gameState is not initialized');
-        return;
+        console.error('gameState is not initialized in handleClick');
+        gameState = initializeGameState();
     }
+    
     gameState.score += gameState.multiplier * gameState.upgrades.clickPower.power;
     await updateUI();
 }
 
 // Upgrade handlers
 async function buyAutoClicker() {
+    console.log('Buy auto clicker, current gameState:', gameState);
+    
     if (!gameState) {
-        console.error('gameState is not initialized');
-        return;
+        console.error('gameState is not initialized in buyAutoClicker');
+        gameState = initializeGameState();
     }
+    
     if (gameState.score >= gameState.upgrades.autoClicker.cost) {
         gameState.score -= gameState.upgrades.autoClicker.cost;
         gameState.upgrades.autoClicker.level++;
@@ -275,10 +275,13 @@ async function buyAutoClicker() {
 }
 
 async function buyClickPower() {
+    console.log('Buy click power, current gameState:', gameState);
+    
     if (!gameState) {
-        console.error('gameState is not initialized');
-        return;
+        console.error('gameState is not initialized in buyClickPower');
+        gameState = initializeGameState();
     }
+    
     if (gameState.score >= gameState.upgrades.clickPower.cost) {
         gameState.score -= gameState.upgrades.clickPower.cost;
         gameState.upgrades.clickPower.level++;
@@ -290,10 +293,13 @@ async function buyClickPower() {
 
 // Auto clicker
 async function autoClick() {
+    console.log('Auto click, current gameState:', gameState);
+    
     if (!gameState) {
-        console.error('gameState is not initialized');
-        return;
+        console.error('gameState is not initialized in autoClick');
+        gameState = initializeGameState();
     }
+    
     gameState.score += gameState.upgrades.autoClicker.clicksPerSecond * gameState.upgrades.clickPower.power;
     await updateUI();
 }
